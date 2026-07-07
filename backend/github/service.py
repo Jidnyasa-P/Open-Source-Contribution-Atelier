@@ -1,5 +1,6 @@
 import requests
 from typing import Dict, Any, Optional
+from urllib.parse import urlparse
 from .auth import get_github_token
 
 
@@ -27,6 +28,11 @@ class GithubService:
     def make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         """Make a GitHub API request"""
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
+        
+        parsed_url = urlparse(url)
+        if parsed_url.netloc != "api.github.com" and not parsed_url.netloc.endswith(".github.com"):
+            raise ValueError("Invalid endpoint: Domain must be a github.com domain")
+
         headers = self._get_headers()
         headers.update(kwargs.pop("headers", {}))
 
@@ -76,4 +82,4 @@ class GithubService:
 
 
 # Singleton instance
-github_service = GitHubService()
+github_service = GithubService()
