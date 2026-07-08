@@ -1073,7 +1073,7 @@ export function LessonPage() {
       )}
 
       {/* Lesson Feedback Widget */}
-      {lesson && <LessonFeedbackWidget lessonSlug={lesson.slug} />}
+      {lesson && isCompleted && (<LessonFeedbackWidget lessonSlug={lesson.slug} />)}
     </div>
   );
 }
