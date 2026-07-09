@@ -1,7 +1,8 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
+from apps.events.services.event_bus import EventBus
 
 from .models import UserProfile
 
@@ -26,3 +27,31 @@ User.add_to_class(
     "organization",
     property(lambda u: u.profile.organization if hasattr(u, "profile") else None),
 )
+
+@receiver(post_save, sender=User)
+def publish_user_indexed_event(sender, instance, **kwargs):
+    if getattr(instance, "is_deleted", False):
+        EventBus.emit("SearchDeindexRequested", {
+            "app_label": sender._meta.app_label,
+            "model_name": sender._meta.model_name,
+            "object_id": instance.pk,
+        })
+        return
+
+    EventBus.emit("SearchIndexRequested", {
+        "app_label": sender._meta.app_label,
+        "model_name": sender._meta.model_name,
+        "object_id": instance.pk,
+        "title": instance.username,
+        "description": instance.email,
+        "tags": "",
+        "body_text": instance.email,
+    })
+
+@receiver(post_delete, sender=User)
+def publish_user_deindexed_event(sender, instance, **kwargs):
+    EventBus.emit("SearchDeindexRequested", {
+        "app_label": sender._meta.app_label,
+        "model_name": sender._meta.model_name,
+        "object_id": instance.pk,
+    })
