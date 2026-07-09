@@ -159,6 +159,8 @@ INSTALLED_APPS = [
     "apps.moderation",
     "apps.events",
     "django_q",
+    "apps.feature_flags",
+    "apps.issues",
 ]
 
 MIDDLEWARE = [
