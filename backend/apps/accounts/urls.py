@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    ChangePasswordView,  # ✅ ADD THIS IMPORT
     ExportDataView,
     GitHubOAuthCallbackView,
     GitHubOAuthStartView,
@@ -14,7 +15,7 @@ from .views import (
     OtpVerifyView,
     PasswordResetConfirmView,
     PasswordResetRequestView,
-    PasswordResetValidateTokenView,  # ✅ ADD THIS IMPORT
+    PasswordResetValidateTokenView,
     RefreshView,
     SecureAccountDeleteView,
     SignupView,
@@ -50,11 +51,18 @@ urlpatterns = [
         PasswordResetConfirmView.as_view(),
         name="password-reset-confirm",
     ),
-    # ✅ ADD THIS - Validate Token Endpoint
     path(
         "password-reset/validate-token/",
         PasswordResetValidateTokenView.as_view(),
         name="password-reset-validate",
+    ),
+    
+    # ── Password Change (with JWT Invalidation) ──────────────────────────────
+    # ✅ ADD THIS - Change Password Endpoint
+    path(
+        "change-password/",
+        ChangePasswordView.as_view(),
+        name="change-password",
     ),
     
     # ── OTP / Email Verification ───────────────────────────────────────────────

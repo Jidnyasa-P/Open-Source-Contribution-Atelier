@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Password Reset Views (UPDATED with Custom Token Model)
+# Password Reset Views (UPDATED with Custom Token Model & JWT Invalidation)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -103,18 +103,37 @@ class PasswordResetConfirmView(APIView):
             )
 
         user = reset_token.user
+        
+        # Set new password (this will trigger JWT invalidation via signal)
         user.set_password(new_password)
+        
+        # Update last_password_change in profile
         if hasattr(user, "profile"):
             user.profile.last_password_change = timezone.now()
-            user.profile.save(update_fields=["last_password_change"])
+            # ✅ Increment JWT token version to invalidate all existing tokens
+            user.profile.jwt_token_version += 1
+            user.profile.save(update_fields=["last_password_change", "jwt_token_version"])
+        else:
+            # Create profile if it doesn't exist
+            from apps.accounts.models import UserProfile
+            UserProfile.objects.create(
+                user=user,
+                last_password_change=timezone.now(),
+                jwt_token_version=2
+            )
+        
         user.save()
 
+        # Mark token as used
         reset_token.is_used = True
         reset_token.save(update_fields=["is_used"])
 
+        # ✅ Log the invalidation
+        logger.info(f"Password reset confirmed for user {user.username} - all JWT tokens invalidated")
+
         return Response(
             {
-                "message": "Your password has been successfully reset. You can now log in."
+                "message": "Your password has been successfully reset. All existing JWT tokens have been invalidated. You can now log in with your new password."
             },
             status=status.HTTP_200_OK,
         )
@@ -163,3 +182,84 @@ class PasswordResetValidateTokenView(APIView):
             'message': 'Token is valid',
             'email': reset_token.user.email
         })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ✅ ADD: Change Password View with JWT Invalidation
+# ─────────────────────────────────────────────────────────────────────────────
+
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class ChangePasswordView(APIView):
+    """
+    POST /api/auth/change-password/
+
+    Change user password and invalidate all existing JWT tokens.
+    Rate-limited to 5 requests/minute per user.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+
+        if not current_password or not new_password:
+            return Response(
+                {'error': 'Current password and new password are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verify current password
+        if not user.check_password(current_password):
+            return Response(
+                {'error': 'Current password is incorrect'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate new password
+        try:
+            validate_password(new_password, user)
+        except ValidationError as e:
+            return Response(
+                {'error': e.messages[0]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Set new password (this will trigger the signal)
+        user.set_password(new_password)
+        
+        # ✅ Increment JWT token version to invalidate all existing tokens
+        if hasattr(user, "profile") and user.profile:
+            user.profile.jwt_token_version += 1
+            user.profile.last_password_change = timezone.now()
+            user.profile.save(update_fields=["jwt_token_version", "last_password_change"])
+        else:
+            # Create profile if it doesn't exist
+            from apps.accounts.models import UserProfile
+            UserProfile.objects.create(
+                user=user,
+                last_password_change=timezone.now(),
+                jwt_token_version=2
+            )
+        
+        user.save()
+
+        logger.info(f"Password changed for user {user.username} - all JWT tokens invalidated")
+
+        return Response(
+            {
+                'message': 'Password changed successfully. All existing JWT tokens have been invalidated.'
+            },
+            status=status.HTTP_200_OK
+        )
