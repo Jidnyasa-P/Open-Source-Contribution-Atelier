@@ -33,6 +33,7 @@ import { CertificateModal } from "./CertificateModal";
 import { ProgressReportModal } from "./ProgressReportModal";
 import { StatsCards } from "./StatsCards";
 import { AchievementCardModal } from "./AchievementCardModal";
+import { LessonsChart } from "../LessonsChart";
 import type {
   CertificateResponse,
   ContributorDashboardData,
@@ -105,6 +106,11 @@ export function ContributorDashboard() {
     queryKey: ["learningPath"],
     queryFn: async () =>
       (await fetchApi("/users/me/learning-path/")) as LearningPathData,
+  });
+
+  const { data: lessonStats } = useQuery<any>({
+    queryKey: ["daily-lesson-stats"],
+    queryFn: () => fetchApi("/progress/daily-stats/"),
   });
 
   const isLoading = isContributorLoading || isLessonsLoading;
@@ -599,6 +605,13 @@ return (
     </div>
   </div>
 </section>
+
+{/* Lessons Completed per Day Line Chart */}
+{lessonStats && lessonStats.length > 0 && (
+  <section className="rounded-[2.5rem] border-4 border-black bg-white p-6 sm:p-8 shadow-card dark:bg-[#1f1c18] dark:border-[#2e2924] dark:shadow-none mt-6">
+    <LessonsChart data={lessonStats} />
+  </section>
+)}
 
 {/* Recommended Content */}
 <section className="rounded-[2.5rem] border-4 border-black bg-white p-6 sm:p-8 shadow-card dark:bg-[#1f1c18] dark:border-[#2e2924] dark:shadow-none mt-6">

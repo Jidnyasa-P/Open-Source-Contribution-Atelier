@@ -39,6 +39,7 @@ from .serializers import (
     LessonProgressCreateSerializer,
     LessonProgressSerializer,
     QuizAttemptSerializer,
+    DailyProgressSerializer,
 )
 from .throttles import HelpRequestRateThrottle
 
@@ -920,3 +921,30 @@ class ReadingProgressView(APIView):
         cache_key = f"reading_progress_{request.user.id}_{lesson_slug}"
         cache.set(cache_key, progress, timeout=60 * 60 * 24 * 30)
         return Response({"status": "success", "progress": progress})
+
+
+class DailyLessonStatsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        progress_records = LessonProgress.objects.filter(
+            user=request.user,
+            completed=True
+        ).select_related('lesson').order_by('updated_at')
+
+        # Group by date locally in Python
+        stats = {}
+        for record in progress_records:
+            date_str = record.updated_at.date().isoformat()
+            if date_str not in stats:
+                stats[date_str] = {
+                    'date': record.updated_at.date(),
+                    'count': 0,
+                    'lessons': []
+                }
+            stats[date_str]['count'] += 1
+            stats[date_str]['lessons'].append(record.lesson.title)
+
+        data = sorted(stats.values(), key=lambda x: x['date'])
+        serializer = DailyProgressSerializer(data, many=True)
+        return Response(serializer.data)
