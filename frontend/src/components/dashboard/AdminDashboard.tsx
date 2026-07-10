@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchApi } from "../../lib/api";
+import { useTheme } from "../../hooks/useTheme";
 import SkeletonAdminDashboard from "../ui/skeletons/SkeletonAdminDashboard";
 import {
   Bar,
@@ -17,6 +18,7 @@ import {
 import type { AdminDashboardData, LeaderboardResponse } from "./types";
 
 export function AdminDashboard() {
+  const { theme } = useTheme();
   const {
     data: adminData,
     isLoading: isAdminLoading,
@@ -155,18 +157,19 @@ return (
           ) : leaderboardResults.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={leaderboardResults}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                <CartesianGrid strokeDasharray="3 3" stroke={theme === "dark" ? "#2e2924" : "#e0e0e0"} />
                 <XAxis
                   dataKey="username"
-                  tick={{ fontStyle: "bold", fill: "#6b5a49" }}
+                  tick={{ fontStyle: "bold", fill: theme === "dark" ? "#c4bbae" : "#6b5a49" }}
                 />
-                <YAxis tick={{ fontStyle: "bold", fill: "#6b5a49" }} />
+                <YAxis tick={{ fontStyle: "bold", fill: theme === "dark" ? "#c4bbae" : "#6b5a49" }} />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "#ffffff",
-                    border: "4px solid #000000",
+                    backgroundColor: theme === "dark" ? "#1f1c18" : "#ffffff",
+                    border: theme === "dark" ? "4px solid #2e2924" : "4px solid #000000",
                     borderRadius: "12px",
                     fontWeight: "bold",
+                    color: theme === "dark" ? "#f0ebe2" : "#000",
                   }}
                 />
                 <Legend wrapperStyle={{ fontWeight: "bold" }} />
@@ -174,14 +177,14 @@ return (
                   dataKey="xp"
                   name="XP Points"
                   fill="#ff9500"
-                  stroke="#000000"
+                  stroke={theme === "dark" ? "#1f1c18" : "#000000"}
                   strokeWidth={2}
                 />
                 <Bar
                   dataKey="prs_merged"
                   name="Merged PRs"
                   fill="#ff3b30"
-                  stroke="#000000"
+                  stroke={theme === "dark" ? "#1f1c18" : "#000000"}
                   strokeWidth={2}
                 />
               </BarChart>
@@ -218,17 +221,18 @@ return (
                       <Cell
                         key={`cell-${index}`}
                         fill={COLORS[index % COLORS.length]}
-                        stroke="#000"
+                        stroke={theme === "dark" ? "#1f1c18" : "#000"}
                         strokeWidth={2}
                       />
                     ))}
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#ffffff",
-                      border: "4px solid #000000",
+                      backgroundColor: theme === "dark" ? "#1f1c18" : "#ffffff",
+                      border: theme === "dark" ? "4px solid #2e2924" : "4px solid #000000",
                       borderRadius: "12px",
                       fontWeight: "bold",
+                      color: theme === "dark" ? "#f0ebe2" : "#000",
                     }}
                   />
                 </PieChart>

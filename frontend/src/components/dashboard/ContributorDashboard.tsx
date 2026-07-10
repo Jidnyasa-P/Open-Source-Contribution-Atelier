@@ -18,6 +18,7 @@ import {
 } from "recharts";
 
 import { useAuth } from "../../features/auth/AuthContext";
+import { useTheme } from "../../hooks/useTheme";
 import { useBookmarks } from "../../hooks/useBookmarks";
 import { useUserProgress } from "../../hooks/useUserProgress";
 import { fetchApi } from "../../lib/api";
@@ -58,6 +59,7 @@ interface ContributorsCache {
 
 export function ContributorDashboard() {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const { isLessonCompleted } = useUserProgress();
   const { bookmarks, toggleBookmark } = useBookmarks();
 
@@ -557,8 +559,16 @@ return (
               paddingAngle={3}
               dataKey="value"
             >
-              <Cell fill="#ff3b30" stroke="#000" strokeWidth={2} />
-              <Cell fill="#FFEBC2" stroke="#000" strokeWidth={2} />
+              <Cell 
+                fill={theme === "dark" ? "#ff665c" : "#ff3b30"} 
+                stroke={theme === "dark" ? "#1f1c18" : "#000"} 
+                strokeWidth={2} 
+              />
+              <Cell 
+                fill={theme === "dark" ? "#3d2b14" : "#FFEBC2"} 
+                stroke={theme === "dark" ? "#1f1c18" : "#000"} 
+                strokeWidth={2} 
+              />
             </Pie>
           </PieChart>
         </ResponsiveContainer>
