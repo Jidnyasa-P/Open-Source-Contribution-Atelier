@@ -1,8 +1,4 @@
-import {
-  createContext,
-  useContext,
-  type ReactNode,
-} from "react";
+import React, { createContext, useContext, ReactNode } from "react";
 
 import { useLocalSyncGeneric } from "../hooks/useLocalSyncGeneric";
 
