@@ -1,9 +1,13 @@
 import json
+import logging
 from typing import Any, Dict, List
 
 from django.core.management.base import BaseCommand
+from django.db import transaction
 
 from apps.content.models import Exercise, Lesson
+
+logger = logging.getLogger(__name__)
 
 LESSONS: List[Dict[str, Any]] = [
     {
@@ -297,7 +301,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--format",
             type=str,
-            default="json",
+            default="text",
             choices=["json", "text"],
             help="Output format: 'json' for structured data, 'text' for human-readable",
         )
@@ -307,79 +311,101 @@ class Command(BaseCommand):
 
         seeded = []
         skipped = []
+        exercises_seeded = []
+        exercises_skipped = []
         errors = []
 
         previous_lesson = None
-        for l in LESSONS:
+        for lesson_data in LESSONS:
             try:
-                lesson_obj, created = Lesson.objects.update_or_create(
-                    slug=l["slug"],
-                    defaults={
-                        "difficulty": l.get("difficulty", "beginner"),
-                        "title": l["title"],
-                        "summary": l["summary"],
-                        "content": l["content"],
-                        "learning_objectives": l.get("learning_objectives", []),
-                        "tips": l.get("tips", []),
-                        "category": l.get("category", "general"),
-                        "order": l.get("order", 0),
-                        "estimated_minutes": l.get("estimated_minutes", 15),
-                    },
-                )
+                with transaction.atomic():
+                    lesson_obj, created = Lesson.objects.update_or_create(
+                        slug=lesson_data["slug"],
+                        defaults={
+                            "difficulty": lesson_data.get("difficulty", "beginner"),
+                            "title": lesson_data["title"],
+                            "summary": lesson_data["summary"],
+                            "content": lesson_data["content"],
+                            "learning_objectives": lesson_data.get(
+                                "learning_objectives", []
+                            ),
+                            "tips": lesson_data.get("tips", []),
+                            "category": lesson_data.get("category", "general"),
+                            "order": lesson_data.get("order", 0),
+                            "estimated_minutes": lesson_data.get(
+                                "estimated_minutes", 15
+                            ),
+                        },
+                    )
 
-                if previous_lesson:
-                    lesson_obj.prerequisites.add(previous_lesson)
-                previous_lesson = lesson_obj
+                    if previous_lesson:
+                        lesson_obj.prerequisites.add(previous_lesson)
+                    previous_lesson = lesson_obj
 
-                if created:
-                    seeded.append(lesson_obj.slug)
-                    if output_format == "text":
-                        self.stdout.write(
-                            self.style.SUCCESS(f"✓ Created lesson: {lesson_obj.slug}")
-                        )
-                else:
-                    skipped.append(lesson_obj.slug)
-                    if output_format == "text":
-                        self.stdout.write(
-                            self.style.WARNING(f"~ Skipped lesson: {lesson_obj.slug}")
-                        )
+                    exercises = lesson_data.get("exercises", [])
+                    if isinstance(exercises, list):
+                        for ex in exercises:
+                            ex_obj, ex_created = Exercise.objects.update_or_create(
+                                lesson=lesson_obj,
+                                title=ex["title"],
+                                defaults={
+                                    "prompt": ex["prompt"],
+                                    "expected_command": ex.get("expected_command", ""),
+                                    "explanation": ex.get("explanation", ""),
+                                    "points": ex.get("points", 10),
+                                },
+                            )
 
-                exercises = l.get("exercises", [])
-                if isinstance(exercises, list):
-                    for ex in exercises:
-                        ex_obj, ex_created = Exercise.objects.update_or_create(
-                            lesson=lesson_obj,
-                            title=ex["title"],
-                            defaults={
-                                "prompt": ex["prompt"],
-                                "expected_command": ex.get("expected_command", ""),
-                                "explanation": ex.get("explanation", ""),
-                                "points": ex.get("points", 10),
-                            },
-                        )
-
-                        if output_format == "text":
                             if ex_created:
-                                self.stdout.write(
-                                    self.style.SUCCESS(
-                                        f"  ✓ Created exercise: {ex_obj.title}"
-                                    )
-                                )
+                                exercises_seeded.append(ex_obj.title)
                             else:
-                                self.stdout.write(
-                                    self.style.WARNING(
-                                        f"  ~ Skipped exercise: {ex_obj.title}"
+                                exercises_skipped.append(ex_obj.title)
+
+                            if output_format == "text":
+                                if ex_created:
+                                    self.stdout.write(
+                                        self.style.SUCCESS(
+                                            f"  ✓ Created exercise: {ex_obj.title}"
+                                        )
                                     )
+                                else:
+                                    self.stdout.write(
+                                        self.style.WARNING(
+                                            f"  ~ Skipped exercise: {ex_obj.title}"
+                                        )
+                                    )
+
+                    # Only mark as seeded/skipped after all exercises succeed
+                    if created:
+                        seeded.append(lesson_obj.slug)
+                        if output_format == "text":
+                            self.stdout.write(
+                                self.style.SUCCESS(
+                                    f"✓ Created lesson: {lesson_obj.slug}"
                                 )
-            except Exception as e:
-                error_msg = f"Error seeding lesson {l.get('slug', 'unknown')}: {str(e)}"
+                            )
+                    else:
+                        skipped.append(lesson_obj.slug)
+                        if output_format == "text":
+                            self.stdout.write(
+                                self.style.WARNING(
+                                    f"~ Skipped lesson: {lesson_obj.slug}"
+                                )
+                            )
+            except (KeyError, ValueError) as e:
+                error_msg = (
+                    f"Error seeding lesson {lesson_data.get('slug', 'unknown')}: {e}"
+                )
                 errors.append(error_msg)
+                logger.exception("Failed to seed lesson", exc_info=True)
                 if output_format == "text":
                     self.stdout.write(self.style.ERROR(error_msg))
 
         result = {
             "seeded": seeded,
             "skipped": skipped,
+            "exercises_seeded": len(exercises_seeded),
+            "exercises_skipped": len(exercises_skipped),
             "errors": errors,
             "total": len(seeded) + len(skipped),
         }

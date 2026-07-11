@@ -593,21 +593,27 @@ def test_seed_lessons_json_output_format():
     # Validate structure
     assert "seeded" in result
     assert "skipped" in result
+    assert "exercises_seeded" in result
+    assert "exercises_skipped" in result
     assert "errors" in result
     assert "total" in result
 
     # Validate types
     assert isinstance(result["seeded"], list)
     assert isinstance(result["skipped"], list)
+    assert isinstance(result["exercises_seeded"], int)
+    assert isinstance(result["exercises_skipped"], int)
     assert isinstance(result["errors"], list)
     assert isinstance(result["total"], int)
 
     # Validate totals
     assert result["total"] == len(result["seeded"]) + len(result["skipped"])
 
-    # On first run, should seed all lessons
+    # On first run, should seed all lessons and exercises
     assert len(result["seeded"]) > 0
     assert len(result["skipped"]) == 0
+    assert result["exercises_seeded"] > 0
+    assert result["exercises_skipped"] == 0
     assert len(result["errors"]) == 0
 
 
@@ -634,3 +640,25 @@ def test_seed_lessons_idempotent_with_skip_detection():
     second_skipped = set(result2["skipped"])
     assert first_seeded == second_skipped
     assert len(result2["seeded"]) == 0
+
+
+@pytest.mark.django_db
+def test_seed_lessons_default_format_is_text():
+    """Test that default format is human-readable text (backward compatibility)."""
+    from io import StringIO
+    from django.core.management import call_command
+
+    out = StringIO()
+    call_command("seed_lessons", stdout=out)
+    output = out.getvalue()
+
+    # Should not be JSON (would fail to parse or raise)
+    try:
+        import json
+
+        json.loads(output)
+        # If it parses as JSON, it should at least have text markers
+        assert "✓" in output or "~" in output
+    except json.JSONDecodeError:
+        # Expected: output is human-readable text, not JSON
+        assert "✓" in output or "Seeding complete" in output
