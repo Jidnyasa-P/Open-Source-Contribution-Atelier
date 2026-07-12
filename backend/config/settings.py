@@ -175,6 +175,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.cache",
     "apps.core",
+    "apps.localization",
     "apps.content",
     "apps.progress",
     "apps.challenges",
@@ -227,6 +228,7 @@ MIDDLEWARE = [
     "apps.cache.middleware.RateLimitMiddleware",
     "apps.sandbox.middleware.SandboxExecutionLogMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+    "apps.localization.middleware.LocaleMiddleware",
     "django_prometheus.middleware.PrometheusAfterMiddleware",
 ]
 

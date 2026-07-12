@@ -32,6 +32,7 @@ urlpatterns = [
     # ── Core Apps ──────────────────────────────────────────────────────────────
     path("api/content/", include("apps.content.urls")),
     path("api/progress/", include("apps.progress.urls")),
+    path("api/localization/", include("apps.localization.urls")),
     path("api/challenges/", include("apps.challenges.urls")),
     path("api/sandbox/", include("apps.sandbox.urls")),
     # ── Notifications & Real-time ─────────────────────────────────────────────
