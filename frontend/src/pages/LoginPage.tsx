@@ -204,9 +204,6 @@ export function LoginPage() {
       </form>
     </AuthPageShell>
   );
-
-}
-
 }
 
 export default LoginPage;

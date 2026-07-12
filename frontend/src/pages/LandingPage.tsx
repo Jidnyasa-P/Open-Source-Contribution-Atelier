@@ -167,44 +167,40 @@ export function LandingPage() {
             <div className="text-black font-bold text-sm bg-primary p-3 rounded-lg border-4 border-black shadow-card-sm mb-4">
               {error}
             </div>
-          {/* How It Works Section */}
-         <div className="how-it-works-section">
-           <h2 className="section-title">🚀 How It Works</h2>
-           <p className="section-subtitle">
-           Start your open source journey in 4 simple steps
-         </p>
-  
-        <div className="steps-grid">
-       <div className="step-card">
-        <div className="step-number">1</div>
-        <div className="step-icon">🔐</div>
-        <h3>Sign In</h3>
-       <p>Use your GitHub or Google account to get started</p>
-       </div>
-    
-    <div className="step-card">
-      <div className="step-number">2</div>
-      <div className="step-icon">🔍</div>
-      <h3>Find an Issue</h3>
-      <p>Browse beginner-friendly issues from trusted projects</p>
-    </div>
-    
-    <div className="step-card">
-      <div className="step-number">3</div>
-      <div className="step-icon">💻</div>
-      <h3>Make Your Contribution</h3>
-      <p>Submit your first pull request with guided support</p>
-    </div>
-    
-    <div className="step-card">
-      <div className="step-number">4</div>
-      <div className="step-icon">📈</div>
-      <h3>Learn & Grow</h3>
-      <p>Get feedback, build skills, and earn recognition</p>
-    </div>
-  </div>
-</div>
           )}
+
+          <div className="how-it-works-section">
+            <h2 className="section-title">How It Works</h2>
+            <p className="section-subtitle">
+              Start your open source journey in 4 simple steps
+            </p>
+            <div className="steps-grid">
+              <div className="step-card">
+                <div className="step-number">1</div>
+                <div className="step-icon">🔐</div>
+                <h3>Sign In</h3>
+                <p>Use your GitHub or Google account to get started</p>
+              </div>
+              <div className="step-card">
+                <div className="step-number">2</div>
+                <div className="step-icon">🔍</div>
+                <h3>Find an Issue</h3>
+                <p>Browse beginner-friendly issues from trusted projects</p>
+              </div>
+              <div className="step-card">
+                <div className="step-number">3</div>
+                <div className="step-icon">💻</div>
+                <h3>Make Your Contribution</h3>
+                <p>Submit your first pull request with guided support</p>
+              </div>
+              <div className="step-card">
+                <div className="step-number">4</div>
+                <div className="step-icon">📈</div>
+                <h3>Learn & Grow</h3>
+                <p>Get feedback, build skills, and earn recognition</p>
+              </div>
+            </div>
+          </div>
           <OrganizationsGrid />
           <form onSubmit={handleStandardLogin} className="space-y-4">
             <button

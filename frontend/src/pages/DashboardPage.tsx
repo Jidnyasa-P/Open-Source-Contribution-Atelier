@@ -11,9 +11,6 @@ import SkeletonContributorDashboard from "../components/ui/skeletons/SkeletonCon
 import { useRef } from "react";
 import { useElementSize } from "../hooks/useElementSize";
 import { fetchLessonsApi, Lesson } from "../lib/lessons";
-import { LessonsChart } from '../components/LessonsChart';
-import { useQuery } from '@tanstack/react-query';
-import { fetchApi } from '../lib/api';
 import { useUserProgress } from "../hooks/useUserProgress";
 import { useBookmarks } from "../hooks/useBookmarks";
 import { BADGES } from "../constants/badges";
@@ -91,6 +88,7 @@ interface AssignedIssue {
 export function DashboardPage() {
   const { user } = useAuth();
 
+  if (user?.is_staff) {
     return (
       <div className="max-w-7xl mx-auto px-4 pt-24 pb-12 space-y-10">
         {/* Admin Header */}
