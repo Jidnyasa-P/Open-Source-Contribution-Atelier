@@ -2,7 +2,7 @@ import { configureStore } from "@reduxjs/toolkit";
 import authReducer from "../features/auth/authSlice";
 import notificationReducer from "../features/notifications/notificationSlice";
 // 1. Import your new chat slice
-import chatReducer from "../features/chat/chatSlice"; 
+import chatReducer from "../components/chat/chatSlice"; 
 
 export const store = configureStore({
   reducer: {

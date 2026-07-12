@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { enqueueMessage, clearQueue, setOnlineStatus, ChatMessage } from './chatSlice';
+import { enqueueMessage, clearQueue, setOnlineStatus, ChatMessage } from '../components/chat/chatSlice';
 // Adjust RootState import based on your store setup
 // import { RootState } from '../store'; 
 

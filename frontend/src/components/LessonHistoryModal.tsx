@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import ReactDiffViewer from "react-diff-viewer-continued";
 import { format } from "date-fns";
 import { X, History } from "lucide-react";
-import { api } from "../../lib/api";
+import { api } from "../lib/api";
 
 interface LessonVersion {
   id: number;

@@ -6,4 +6,4 @@
  */
 
 export { CertificateShareButtons } from './CertificateShareButtons';
-export { default as CertificatePage } from '../pages/CertificatePage';
+export { default as CertificatePage } from '../../pages/CertificatePage';

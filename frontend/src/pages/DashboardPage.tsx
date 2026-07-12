@@ -88,6 +88,71 @@ interface AssignedIssue {
 export function DashboardPage() {
   const { user } = useAuth();
 
+  // Admin dashboard placeholders
+  const system_stats = {
+    total_issues: 0,
+    solved_issues: 0,
+    open_issues: 0,
+    total_prs: 0,
+    merged_prs: 0,
+    pending_prs: 0,
+    active_contributors: 0,
+  };
+  const isLeaderboardLoading = false;
+  const leaderboardResults: { username: string; xp: number; prs_merged: number }[] = [];
+  const issueStatusData: { name: string; value: number }[] = [];
+  const COLORS: string[] = [];
+  const pending_prs: PendingPR[] = [];
+
+  // Contributor/Student dashboard placeholders
+  const contributorData: {
+    personal_stats: {
+      total_xp: number;
+      streak_days: number;
+      longest_streak: number;
+      rank: number;
+      prs_merged: number;
+    };
+    assigned_issues: AssignedIssue[];
+  } = {
+    personal_stats: { total_xp: 0, streak_days: 0, longest_streak: 0, rank: 0, prs_merged: 0 },
+    assigned_issues: [],
+  };
+  const contributorError = null;
+  const showOnboarding = false;
+  const handleFinishOnboarding = () => {};
+  const completedLessonsCount = 0;
+  const totalLessonsCount = 0;
+  const factOfDay = FACTS[Math.floor(Math.random() * FACTS.length)];
+  const completionPercentage = 0;
+  const setShowCertificate = (_val: boolean) => {};
+  const setShowProgressReport = (_val: boolean) => {};
+  const learningPathData: {
+    next_step: {
+      id: string;
+      title: string;
+      status: string;
+      description: string;
+      completed_lessons_count: number;
+      lessons_count: number;
+      explanation: string;
+    };
+  } | null = null;
+  const activeLessonsQueue: Lesson[] = [];
+  const bookmarks: {
+    lesson_slug: string;
+    lesson_title: string;
+    lesson_category: string;
+    lesson_estimated_minutes: number;
+  }[] = [];
+  const toggleBookmark = { mutate: (_args: { slug: string; isBookmarked: boolean }) => {} };
+  const earnedBadges: string[] = [];
+  const gitHubContributors: GitHubContributor[] = [];
+  const onboardingStep = 0;
+  const setOnboardingStep = (_fn: ((prev: number) => number) | number) => {};
+  const showCertificate = false;
+  const certificateData: { certificate: { verification_hash: string; issued_at: string } } | null = null;
+
   if (user?.is_staff) {
     return (
       <div className="max-w-7xl mx-auto px-4 pt-24 pb-12 space-y-10">

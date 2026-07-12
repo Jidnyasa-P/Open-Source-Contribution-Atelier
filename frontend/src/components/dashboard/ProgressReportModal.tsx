@@ -1,7 +1,7 @@
 import { Printer, X, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { SocialShareButtons } from "../ui/SocialShareButtons";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "../../features/auth/AuthContext";
 import { BADGES } from "../../constants/badges";
 import { ModuleProgressList } from "./ModuleProgressList";
 import type { ModuleData, PersonalStats } from "./types";
