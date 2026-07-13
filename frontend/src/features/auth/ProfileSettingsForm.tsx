@@ -62,11 +62,16 @@ const profileSchema = z.object({
         message: "Please enter a valid URL (starting with http:// or https://)",
       },
     ),
+  receive_weekly_digest: z.boolean().default(true),
 });
 
 type ProfileFormValues = z.input<typeof profileSchema>;
 
-export function ProfileSettingsForm() {
+interface ProfileSettingsFormProps {
+  onChange?: (values: any) => void;
+}
+
+export function ProfileSettingsForm({ onChange }: ProfileSettingsFormProps) {
   const { user, checkUser } = useAuth();
   const { addToast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -80,6 +85,7 @@ export function ProfileSettingsForm() {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -92,8 +98,19 @@ export function ProfileSettingsForm() {
       twitter_url: user?.twitter_url || "",
       linkedin_url: user?.linkedin_url || "",
       github_url: user?.github_url || "",
+      receive_weekly_digest: user?.receive_weekly_digest ?? true,
     },
   });
+
+  const watchedValues = watch();
+
+  useEffect(() => {
+    onChange?.({
+      ...watchedValues,
+      avatarFile: selectedAvatar,
+      coverFile: selectedCover,
+    });
+  }, [watchedValues, selectedAvatar, selectedCover, onChange]);
 
   useEffect(() => {
     if (user?.email) {
@@ -106,6 +123,7 @@ export function ProfileSettingsForm() {
         twitter_url: user.twitter_url || "",
         linkedin_url: user.linkedin_url || "",
         github_url: user.github_url || "",
+        receive_weekly_digest: user.receive_weekly_digest ?? true,
       });
     }
   }, [user, reset]);
@@ -125,6 +143,10 @@ export function ProfileSettingsForm() {
         formData.append("twitter_url", data.twitter_url || "");
         formData.append("linkedin_url", data.linkedin_url || "");
         formData.append("github_url", data.github_url || "");
+        formData.append(
+          "receive_weekly_digest",
+          String(data.receive_weekly_digest),
+        );
         if (selectedAvatar) formData.append("avatar", selectedAvatar);
         if (selectedCover) formData.append("cover_image", selectedCover);
         body = formData;
@@ -135,6 +157,7 @@ export function ProfileSettingsForm() {
           twitter_url: data.twitter_url || "",
           linkedin_url: data.linkedin_url || "",
           github_url: data.github_url || "",
+          receive_weekly_digest: String(data.receive_weekly_digest),
         };
         if (data.password) payload.password = data.password;
         if (data.bio !== undefined) payload.bio = data.bio;
@@ -147,7 +170,7 @@ export function ProfileSettingsForm() {
         body: body,
       });
 
-      await checkUser(); 
+      await checkUser();
       addToast("Profile settings updated successfully!", "success");
       reset({
         email: data.email,
@@ -157,6 +180,7 @@ export function ProfileSettingsForm() {
         twitter_url: data.twitter_url || "",
         linkedin_url: data.linkedin_url || "",
         github_url: data.github_url || "",
+        receive_weekly_digest: data.receive_weekly_digest,
       });
     } catch (err: unknown) {
       addToast(
@@ -206,26 +230,27 @@ export function ProfileSettingsForm() {
 
   return (
     <form className="space-y-6 pt-2" onSubmit={handleSubmit(onSubmit)}>
-      <CoverUploadDropzone
-        currentCoverUrl={user?.cover_image_url}
-        onFileSelect={(file) => setSelectedCover(file)}
-      />
       <AvatarUploadDropzone
         currentAvatarUrl={user?.avatar_url}
         onFileSelect={(file) => setSelectedAvatar(file)}
       />
 
-      <div className="space-y-2">
+      <CoverUploadDropzone
+        currentCoverUrl={user?.cover_image_url}
+        onFileSelect={(file) => setSelectedCover(file)}
+      />
+
+      <div className="space-y-1.5">
         <label
           htmlFor="email"
-          className="font-bold text-black ml-2 uppercase tracking-wide text-sm"
+          className="font-bold text-black ml-1.5 uppercase tracking-wide text-xs"
         >
           Email Address
         </label>
         <input
           id="email"
           {...register("email")}
-          className={`w-full rounded-2xl border-4 border-black bg-white px-5 py-4 text-black font-bold outline-none placeholder:text-muted/60 focus:bg-accent shadow-card-sm transition-all focus:-translate-y-1 focus:shadow-card ${
+          className={`w-full rounded-xl border-2 border-black bg-white px-4 py-2.5 text-black font-bold text-sm outline-none placeholder:text-muted/60 focus:bg-accent shadow-sm transition-all focus:-translate-y-0.5 focus:shadow-card-sm ${
             errors.email ? "border-red-500" : ""
           }`}
           type="email"
@@ -233,47 +258,47 @@ export function ProfileSettingsForm() {
           disabled={loading}
         />
         {errors.email && (
-          <p role="alert" className="text-red-600 font-bold ml-2 text-sm">
+          <p role="alert" className="text-red-600 font-bold ml-1.5 text-xs">
             {errors.email.message}
           </p>
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <label
           htmlFor="bio"
-          className="font-bold text-black ml-2 uppercase tracking-wide text-sm"
+          className="font-bold text-black ml-1.5 uppercase tracking-wide text-xs"
         >
           Bio (Markdown Supported)
         </label>
         <textarea
           id="bio"
           {...register("bio")}
-          rows={5}
-          className={`w-full rounded-2xl border-4 border-black bg-white px-5 py-4 text-black font-bold outline-none placeholder:text-muted/60 focus:bg-accent shadow-card-sm transition-all focus:-translate-y-1 focus:shadow-card ${
+          rows={4}
+          className={`w-full rounded-xl border-2 border-black bg-white px-4 py-2.5 text-black font-bold text-sm outline-none placeholder:text-muted/60 focus:bg-accent shadow-sm transition-all focus:-translate-y-0.5 focus:shadow-card-sm ${
             errors.bio ? "border-red-500" : ""
           }`}
           placeholder="Tell us about yourself... **Bold**, *Italic*, [Links](https://...) are supported!"
           disabled={loading}
         />
         {errors.bio && (
-          <p role="alert" className="text-red-600 font-bold ml-2 text-sm">
+          <p role="alert" className="text-red-600 font-bold ml-1.5 text-xs">
             {errors.bio.message}
           </p>
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <label
           htmlFor="password"
-          className="font-bold text-black ml-2 uppercase tracking-wide text-sm"
+          className="font-bold text-black ml-1.5 uppercase tracking-wide text-xs"
         >
           New Password (leave blank to keep current)
         </label>
         <input
           id="password"
           {...register("password")}
-          className={`w-full rounded-2xl border-4 border-black bg-white px-5 py-4 text-black font-bold outline-none placeholder:text-muted/60 focus:bg-tertiary shadow-card-sm transition-all focus:-translate-y-1 focus:shadow-card ${
+          className={`w-full rounded-xl border-2 border-black bg-white px-4 py-2.5 text-black font-bold text-sm outline-none placeholder:text-muted/60 focus:bg-tertiary shadow-sm transition-all focus:-translate-y-0.5 focus:shadow-card-sm ${
             errors.password ? "border-red-500" : ""
           }`}
           type="password"
@@ -281,23 +306,23 @@ export function ProfileSettingsForm() {
           disabled={loading}
         />
         {errors.password && (
-          <p role="alert" className="text-red-600 font-bold ml-2 text-sm">
+          <p role="alert" className="text-red-600 font-bold ml-1.5 text-xs">
             {errors.password.message}
           </p>
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <label
           htmlFor="timezone"
-          className="font-bold text-black ml-2 uppercase tracking-wide text-sm"
+          className="font-bold text-black ml-1.5 uppercase tracking-wide text-xs"
         >
           Timezone
         </label>
         <select
           id="timezone"
           {...register("timezone")}
-          className={`w-full rounded-2xl border-4 border-black bg-white px-5 py-4 text-black font-bold outline-none shadow-card-sm transition-all focus:-translate-y-1 focus:shadow-card focus:bg-accent ${
+          className={`w-full rounded-xl border-2 border-black bg-white px-4 py-2.5 text-black font-bold text-sm outline-none shadow-sm transition-all focus:-translate-y-0.5 focus:shadow-card-sm focus:bg-accent ${
             errors.timezone ? "border-red-500" : ""
           }`}
           disabled={loading}
@@ -310,23 +335,23 @@ export function ProfileSettingsForm() {
           ))}
         </select>
         {errors.timezone && (
-          <p role="alert" className="text-red-600 font-bold ml-2 text-sm">
+          <p role="alert" className="text-red-600 font-bold ml-1.5 text-xs">
             {errors.timezone.message}
           </p>
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <label
           htmlFor="github_url"
-          className="font-bold text-black ml-2 uppercase tracking-wide text-sm"
+          className="font-bold text-black ml-1.5 uppercase tracking-wide text-xs"
         >
           GitHub URL
         </label>
         <input
           id="github_url"
           {...register("github_url")}
-          className={`w-full rounded-2xl border-4 border-black bg-white px-5 py-4 text-black font-bold outline-none placeholder:text-muted/60 focus:bg-accent shadow-card-sm transition-all focus:-translate-y-1 focus:shadow-card ${
+          className={`w-full rounded-xl border-2 border-black bg-white px-4 py-2.5 text-black font-bold text-sm outline-none placeholder:text-muted/60 focus:bg-accent shadow-sm transition-all focus:-translate-y-0.5 focus:shadow-card-sm ${
             errors.github_url ? "border-red-500" : ""
           }`}
           type="url"
@@ -334,23 +359,23 @@ export function ProfileSettingsForm() {
           disabled={loading}
         />
         {errors.github_url && (
-          <p role="alert" className="text-red-600 font-bold ml-2 text-sm">
+          <p role="alert" className="text-red-600 font-bold ml-1.5 text-xs">
             {errors.github_url.message}
           </p>
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <label
           htmlFor="linkedin_url"
-          className="font-bold text-black ml-2 uppercase tracking-wide text-sm"
+          className="font-bold text-black ml-1.5 uppercase tracking-wide text-xs"
         >
           LinkedIn URL
         </label>
         <input
           id="linkedin_url"
           {...register("linkedin_url")}
-          className={`w-full rounded-2xl border-4 border-black bg-white px-5 py-4 text-black font-bold outline-none placeholder:text-muted/60 focus:bg-accent shadow-card-sm transition-all focus:-translate-y-1 focus:shadow-card ${
+          className={`w-full rounded-xl border-2 border-black bg-white px-4 py-2.5 text-black font-bold text-sm outline-none placeholder:text-muted/60 focus:bg-accent shadow-sm transition-all focus:-translate-y-0.5 focus:shadow-card-sm ${
             errors.linkedin_url ? "border-red-500" : ""
           }`}
           type="url"
@@ -358,23 +383,23 @@ export function ProfileSettingsForm() {
           disabled={loading}
         />
         {errors.linkedin_url && (
-          <p role="alert" className="text-red-600 font-bold ml-2 text-sm">
+          <p role="alert" className="text-red-600 font-bold ml-1.5 text-xs">
             {errors.linkedin_url.message}
           </p>
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <label
           htmlFor="twitter_url"
-          className="font-bold text-black ml-2 uppercase tracking-wide text-sm"
+          className="font-bold text-black ml-1.5 uppercase tracking-wide text-xs"
         >
           Twitter URL
         </label>
         <input
           id="twitter_url"
           {...register("twitter_url")}
-          className={`w-full rounded-2xl border-4 border-black bg-white px-5 py-4 text-black font-bold outline-none placeholder:text-muted/60 focus:bg-accent shadow-card-sm transition-all focus:-translate-y-1 focus:shadow-card ${
+          className={`w-full rounded-xl border-2 border-black bg-white px-4 py-2.5 text-black font-bold text-sm outline-none placeholder:text-muted/60 focus:bg-accent shadow-sm transition-all focus:-translate-y-0.5 focus:shadow-card-sm ${
             errors.twitter_url ? "border-red-500" : ""
           }`}
           type="url"
@@ -382,29 +407,29 @@ export function ProfileSettingsForm() {
           disabled={loading}
         />
         {errors.twitter_url && (
-          <p role="alert" className="text-red-600 font-bold ml-2 text-sm">
+          <p role="alert" className="text-red-600 font-bold ml-1.5 text-xs">
             {errors.twitter_url.message}
           </p>
         )}
       </div>
 
-      <div className="space-y-4 mt-8">
+      <div className="space-y-4 mt-6">
         <button
-          className="w-full rounded-2xl border-4 border-black bg-accent px-5 py-5 font-black text-black text-xl shadow-card hover:bg-tertiary transition-colors cursor-pointer uppercase disabled:opacity-50"
+          className="w-full rounded-xl border-2 border-black bg-accent px-4 py-3 font-bold text-black text-sm shadow-card-sm hover:bg-tertiary transition-colors cursor-pointer uppercase disabled:opacity-50"
           disabled={loading}
         >
           {loading ? "Updating..." : "Save Settings"}
         </button>
 
-        <div className="space-y-2 mt-6">
-          <label className="font-bold text-black ml-2 uppercase tracking-wide text-sm">
+        <div className="space-y-1.5 mt-4">
+          <label className="font-bold text-black ml-1.5 uppercase tracking-wide text-xs">
             Browser Notifications
           </label>
           {isSupported ? (
             <button
               type="button"
               onClick={isSubscribed ? unsubscribe : subscribe}
-              className={`w-full rounded-2xl border-4 border-black px-5 py-4 font-black text-black text-lg shadow-card-sm transition-all cursor-pointer uppercase flex items-center justify-center gap-2 ${
+              className={`w-full rounded-xl border-2 border-black px-4 py-2.5 font-bold text-black text-sm shadow-card-sm transition-all cursor-pointer uppercase flex items-center justify-center gap-2 ${
                 isSubscribed
                   ? "bg-red-200 hover:bg-red-300"
                   : "bg-[#E8F0FE] hover:bg-blue-200"
@@ -415,23 +440,23 @@ export function ProfileSettingsForm() {
                 : "🔔 Enable Notifications"}
             </button>
           ) : (
-            <p className="text-muted ml-2 text-sm italic">
+            <p className="text-muted ml-1.5 text-xs italic">
               Push notifications are not supported in this browser.
             </p>
           )}
         </div>
 
-        <hr className="border-2 border-black/10 my-8" />
+        <hr className="border border-black/10 my-6" />
 
-        <div className="space-y-2">
-          <label className="font-bold text-black ml-2 uppercase tracking-wide text-sm">
+        <div className="space-y-1.5">
+          <label className="font-bold text-black ml-1.5 uppercase tracking-wide text-xs">
             Data Privacy (GDPR)
           </label>
           <button
             type="button"
             onClick={handleDownloadData}
             disabled={downloading}
-            className="w-full rounded-2xl border-4 border-black bg-white px-5 py-4 font-black text-black text-lg shadow-card-sm hover:-translate-y-1 hover:shadow-card transition-all cursor-pointer uppercase disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full rounded-xl border-2 border-black bg-white px-4 py-2.5 font-bold text-black text-sm shadow-card-sm hover:-translate-y-0.5 hover:shadow-card-sm transition-all cursor-pointer uppercase disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {downloading ? "Compiling Archive..." : "Download All My Data"}
           </button>
