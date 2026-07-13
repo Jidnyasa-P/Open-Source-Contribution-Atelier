@@ -1,12 +1,13 @@
-import os
 import json
 import logging
-import redis
+import os
 from datetime import datetime
-from django.conf import settings
-from django.utils import timezone
+
+import redis
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.conf import settings
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,9 @@ def get_redis_client():
     redis_url = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/1")
     try:
         # Check if we can connect
-        client = redis.from_url(redis_url, decode_responses=True, socket_connect_timeout=1)
+        client = redis.from_url(
+            redis_url, decode_responses=True, socket_connect_timeout=1
+        )
         client.ping()
         return client
     except Exception as e:
@@ -83,6 +86,15 @@ class LeaderboardService:
     def get_leaderboard(
         cls, time_period="all_time", page=1, limit=50, search_username=None
     ):
+        from django.core.cache import cache
+
+        cache_key = (
+            f"hof_cache:{time_period}:p{page}:l{limit}:u{search_username or 'none'}"
+        )
+        cached_result = cache.get(cache_key)
+        if cached_result:
+            return cached_result
+
         client = get_redis_client()
         if not client:
             return {"total_users": 0, "leaderboard": []}
@@ -100,7 +112,7 @@ class LeaderboardService:
             rank = client.zrevrank(key, search_username)
             if rank is not None:
                 score = client.zscore(key, search_username)
-                return {
+                result = {
                     "total_users": client.zcard(key),
                     "leaderboard": [
                         {
@@ -109,9 +121,13 @@ class LeaderboardService:
                             "xp": score,
                             "is_top_3": rank < 3,
                         }
-                    ]
+                    ],
                 }
-            return {"total_users": client.zcard(key), "leaderboard": []}
+                cache.set(cache_key, result, timeout=300)
+                return result
+            result = {"total_users": client.zcard(key), "leaderboard": []}
+            cache.set(cache_key, result, timeout=300)
+            return result
 
         start = (page - 1) * limit
         end = start + limit - 1
@@ -126,10 +142,19 @@ class LeaderboardService:
                 {"username": username, "rank": rank, "xp": score, "is_top_3": rank <= 3}
             )
 
-        return {"total_users": total_users, "leaderboard": leaderboard}
+        result = {"total_users": total_users, "leaderboard": leaderboard}
+        cache.set(cache_key, result, timeout=300)
+        return result
 
     @classmethod
     def get_user_rank(cls, username: str, time_period="all_time"):
+        from django.core.cache import cache
+
+        cache_key = f"hof_user_rank:{time_period}:u{username}"
+        cached_rank = cache.get(cache_key)
+        if cached_rank:
+            return cached_rank
+
         client = get_redis_client()
         if not client:
             return None
@@ -146,10 +171,12 @@ class LeaderboardService:
         rank = client.zrevrank(key, username)
         if rank is not None:
             score = client.zscore(key, username)
-            return {
+            result = {
                 "username": username,
                 "rank": rank + 1,
                 "xp": score,
                 "is_top_3": rank < 3,
             }
+            cache.set(cache_key, result, timeout=300)
+            return result
         return None
