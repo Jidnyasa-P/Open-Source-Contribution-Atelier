@@ -82,7 +82,7 @@ export function GitTerminal({
   } = useGitShell({ onObjectiveComplete: handleComplete });
 
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const { suggestions, selectedIndex, setSelectedIndex } =
+  const { suggestions, selectedIndex, setSelectedIndex, commonCompletionPrefix } =
     useTerminalAutocomplete(inputVal, shellState);
 
   useEffect(() => {
@@ -202,7 +202,14 @@ export function GitTerminal({
       }
       if (e.key === "Tab") {
         e.preventDefault();
-        setInputVal(suggestions[selectedIndex].completionText);
+        if (suggestions.length === 1) {
+          setInputVal(suggestions[0].completionText);
+        } else if (commonCompletionPrefix && commonCompletionPrefix.length > inputVal.length) {
+          setInputVal(commonCompletionPrefix);
+        } else {
+          // IDE fallback for visual selection
+          setInputVal(suggestions[selectedIndex].completionText);
+        }
         return;
       }
       if (e.key === "Escape") {
@@ -211,7 +218,7 @@ export function GitTerminal({
         return;
       }
     } else if (e.key === "Tab") {
-      // If suggestions are not open, keep default Tab behavior.
+      e.preventDefault(); // Prevent focus shift even if no suggestions
       return;
     }
 

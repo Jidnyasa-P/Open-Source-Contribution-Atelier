@@ -16,6 +16,8 @@ import {
 
 import SkeletonLesson from "../components/ui/skeletons/SkeletonLesson";
 import { useUserProgress } from "../hooks/useUserProgress";
+import { useTerminalAutocomplete } from "../hooks/useTerminalAutocomplete";
+import { ShellState } from "../hooks/useGitShell";
 import { useBookmarks } from "../hooks/useBookmarks";
 import { fetchApi } from "../lib/api";
 import { Lesson, fetchLessonsApi, fetchLessonContent } from "../lib/lessons";
@@ -138,6 +140,9 @@ export function LessonPage() {
   const [feedback, setFeedback] = useState<string>("");
   const [showHint, setShowHint] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+
+  const dummyShellState = useMemo(() => ({ cwd: ["/"], fs: {} } as unknown as ShellState), []);
+  const { suggestions, commonCompletionPrefix } = useTerminalAutocomplete(input, dummyShellState);
   const [showConfetti, setShowConfetti] = useState(false);
 
   // For Interactive Terminal Lessons
@@ -503,11 +508,14 @@ export function LessonPage() {
       nonce: quizNonce, // NEW: Appended
     });
 
-    {isCorrect ? (
-              <span>✅ Correct! Well done!</span>
-            ) : (
-              <span>❌ Incorrect. The correct answer was: {correctAnswer}</span>
-            )}
+    if (isCorrect) {
+      setQuizFeedback("correct");
+      if (lesson.slug) {
+        syncProgress({
+          lesson_slug: lesson.slug,
+          score: lesson.points || 15,
+          completed: true,
+        });
       }
     } else {
       setQuizFeedback("incorrect");
@@ -1104,6 +1112,14 @@ export function LessonPage() {
                           value={input}
                           onChange={(e) => setInput(e.target.value)}
                           onKeyDown={(e) => {
+                            if (e.key === "Tab") {
+                              e.preventDefault();
+                              if (suggestions.length === 1) {
+                                setInput(suggestions[0].completionText);
+                              } else if (commonCompletionPrefix && commonCompletionPrefix.length > input.length) {
+                                setInput(commonCompletionPrefix);
+                              }
+                            }
                             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
                               e.preventDefault();
                               handleCommandSubmit(
