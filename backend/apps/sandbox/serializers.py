@@ -187,3 +187,37 @@ class CollabSessionSerializer(serializers.ModelSerializer):
         model = CollabSession
         fields = ["id", "project", "allowed_users", "created_at", "is_active"]
         read_only_fields = ["id", "created_at"]
+
+from .models import PipelineExecution, PipelineJob
+
+
+class PipelineJobSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PipelineJob
+        fields = [
+            "id",
+            "job_type",
+            "status",
+            "log_output",
+            "duration_seconds",
+            "created_at",
+            "completed_at",
+        ]
+        read_only_fields = ["id", "created_at", "completed_at"]
+
+
+class PipelineExecutionSerializer(serializers.ModelSerializer):
+    jobs = PipelineJobSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = PipelineExecution
+        fields = [
+            "id",
+            "project",
+            "trigger_command",
+            "status",
+            "jobs",
+            "created_at",
+            "completed_at",
+        ]
+        read_only_fields = ["id", "status", "created_at", "completed_at"]

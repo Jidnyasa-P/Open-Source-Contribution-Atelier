@@ -496,3 +496,37 @@ class CollabSessionViewSet(viewsets.ModelViewSet):
             return Response({"status": "invited", "mentor": username})
         except User.DoesNotExist:
             return Response({"error": "Mentor not found"}, status=404)
+
+
+# ============================================================
+# CI/CD PIPELINE SIMULATOR
+# ============================================================
+
+from .models import PipelineExecution, PipelineJob
+from .serializers import PipelineExecutionSerializer
+
+
+class PipelineExecutionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for the CI/CD Pipeline Simulator.
+    Creating a pipeline will immediately run the simulation and populate all job logs.
+    """
+    serializer_class = PipelineExecutionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return PipelineExecution.objects.filter(user=self.request.user).prefetch_related("jobs")
+
+    def perform_create(self, serializer):
+        from .services.pipeline_simulator import run_pipeline_simulation
+        pipeline = serializer.save(user=self.request.user)
+
+        # Extract code from the associated project if available
+        code = ""
+        if pipeline.project:
+            first_file = pipeline.project.files.first()
+            if first_file:
+                code = first_file.content
+
+        # Run the simulation synchronously (small jobs are fast enough)
+        run_pipeline_simulation(pipeline, code=code)
