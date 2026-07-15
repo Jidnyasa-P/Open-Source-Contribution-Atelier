@@ -28,18 +28,6 @@ urlpatterns = [
     
     # ── Leaderboard ────────────────────────────────────────────────────────────
     path("api/leaderboard/", LeaderboardView.as_view(), name="leaderboard"),
-    
-
-    path("", include("django_prometheus.urls")),
-    # ── Health Checks ──────────────────────────────────────────────────────────
-    path("health/", include("apps.health.urls")),
-    # ── Legacy Health (keep for backward compatibility) ──────────────────────
-    path("health/legacy/", health_view, name="health"),
-    # ── API Version ────────────────────────────────────────────────────────────
-    path("api/version/", version_view, name="version"),
-    # ── Leaderboard ────────────────────────────────────────────────────────────
-    path("api/leaderboard/", LeaderboardView.as_view(), name="leaderboard"),
-
     # ── Authentication ─────────────────────────────────────────────────────────
     path("accounts/", include("allauth.urls")),
     path("api/auth/", include("apps.accounts.urls")),
@@ -124,7 +112,6 @@ if settings.DEBUG:
         path("api/feature-flags/", include("apps.feature_flags.urls")),
         path(
             "debug/feature-flags/", feature_flags_debug_view, name="debug-feature-flags"
-
         )
     )
 

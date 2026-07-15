@@ -1,28 +1,22 @@
-
 """
 Core Celery tasks with distributed locking.
 """
 
 import logging
+import time
 from datetime import timedelta
+
 from celery import shared_task
-from django.utils import timezone
+from django.apps import apps
+from django.conf import settings
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
-from django.conf import settings
+from django.utils import timezone
 
+from apps.core.models import SoftDeleteModel, PurgeLog
 from .locks import distributed_lock, TaskLockManager
 
-import time
-import logging
-from datetime import timedelta
-from django.utils import timezone
-from django.apps import apps
-from apps.core.models import SoftDeleteModel, PurgeLog
-
-
 logger = logging.getLogger(__name__)
-
 
 
 @shared_task
@@ -165,6 +159,10 @@ def cleanup_notifications_task():
 
     logger.info(f"Cleaned up {deleted_count} old notifications")
     return {"deleted_count": deleted_count}
+<<<<<<< HEAD
+=======
+
+>>>>>>> pr/1691
 def purge_expired_soft_deleted_records(retention_days=30, batch_size=1000):
     """
     Automated GDPR data purge pipeline.
@@ -223,4 +221,3 @@ def _purge_for_model(model, threshold_date, batch_size):
         records_deleted=deleted_count,
         duration_seconds=duration,
     )
-

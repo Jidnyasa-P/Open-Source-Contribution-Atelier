@@ -23,7 +23,6 @@ export default defineConfig({
 
   /* Reporter: HTML locally, GitHub-friendly list on CI */
 
-  reporter: process.env.CI 
   reporter: process.env.CI
 
     ? [

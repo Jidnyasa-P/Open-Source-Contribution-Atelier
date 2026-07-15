@@ -133,15 +133,6 @@
     "typescript-eslint": "^8.22.0",
     "vite": "^6.4.2",
     "vitest": "^3.0.5",
-     "@axe-core/playwright": "^4.8.0",
-    "axe-playwright": "^2.0.1",
-  },
-  "scripts": {
-    "test:a11y": "playwright test accessibility",
-    "test:a11y:ci": "playwright test accessibility --reporter=html,json,junit",
-    "test:a11y:report": "node tests/accessibility/generate-report.js"
-    "vite-plugin-pwa": "^1.3.0",
-    "vitest": "^3.0.5"
-
+    "axe-playwright": "^2.0.1"
   }
 }
