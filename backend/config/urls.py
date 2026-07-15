@@ -83,6 +83,7 @@ urlpatterns = [
     path("api/portfolio/", include("apps.portfolio.urls")),
     path("api/organizations/", include("apps.organizations.urls")),
     path("api/accessibility/", include("apps.accessibility.urls")),
+    path("api/issues/", include("apps.issues.urls")),
     # ── Events & GraphQL ──────────────────────────────────────────────────────
     # path("api/events/", include("apps.events.urls")),
     path("api/graphql/", include("apps.graphql_gateway.urls")),
