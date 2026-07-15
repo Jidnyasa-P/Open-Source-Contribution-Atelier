@@ -6,7 +6,6 @@ import { mockStudentStats, mockLessonQueue, getTipOfTheDay } from "../lib/dashbo
 import { Link } from "react-router-dom";
 import SkeletonAdminDashboard from "../components/ui/skeletons/SkeletonAdminDashboard";
 import { useState, useEffect, useMemo } from "react";
-import { fetchLessonsApi } from "../lib/lessons";
 import { useUserProgress } from "../hooks/useUserProgress";
 import { useBookmarks } from "../hooks/useBookmarks";
 import { BADGES } from "../constants/badges";
@@ -19,13 +18,19 @@ export function DashboardPage() {
 
   const { data: lessonsData = [], isLoading: lessonsLoading } = useQuery({
     queryKey: ["dashboardLessons"],
-    queryFn: fetchLessonsApi,
+    queryFn: () =>
+      fetch("/content/curriculum.json")
+        .then((r) => r.json())
+        .then((json: { modules: { lessons: { slug: string; title: string; description: string }[] }[] }) =>
+          json.modules.flatMap((m) => m.lessons.map((l) => ({ ...l, filePath: "" }))),
+        )
+        .catch(() => []),
   });
   const lessons = lessonsData;
 
   const { isLoading: contributorLoading } = useQuery({
     queryKey: ["contributorStats"],
-    queryFn: () => fetchApi("/dashboard/stats/", { suppressErrorToast: true }),
+    queryFn: () => fetchApi("/dashboard/stats/", { suppressErrorToast: true, timeoutMs: 2000 }),
     enabled: !!user && !user.is_staff,
   });
 
