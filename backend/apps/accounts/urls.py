@@ -1,6 +1,8 @@
 from django.urls import path
 
 from .views import (
+    AvatarUploadView,
+    ChangePasswordView,
     ExportDataView,
     GitHubOAuthCallbackView,
     GitHubOAuthStartView,
@@ -14,11 +16,15 @@ from .views import (
     OtpVerifyView,
     PasswordResetConfirmView,
     PasswordResetRequestView,
+    PasswordResetValidateTokenView,
+    PublicProfileView,
     RefreshView,
     SecureAccountDeleteView,
+    ShopStreakFreezeView,
     SignupView,
     UserListView,
     UserStatisticsView,
+    UserSuggestionsView,
 )
 
 urlpatterns = [
