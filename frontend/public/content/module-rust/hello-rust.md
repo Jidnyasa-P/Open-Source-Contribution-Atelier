@@ -1,8 +1,6 @@
 ## 🦀 Welcome to the Rust programming language sandbox! Rust is a systems programming language focused on safety, speed, and concurrency.
 
-<div align="center">
-    <img width="300" height=auto alt="image" src="https://github.com/user-attachments/assets/99eb3058-9489-44f7-b4b7-ef2a767747b9" />
-</div>
+<img width="1047" height="206" alt="image" src="https://github.com/user-attachments/assets/47901466-c24f-40c9-bbb7-bfe6a84b6239" />
 
 ---
 
