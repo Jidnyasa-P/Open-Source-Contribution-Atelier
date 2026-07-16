@@ -223,21 +223,53 @@ def _purge_for_model(model, threshold_date, batch_size):
     )
 
 
+def archive_audit_logs():
+    from apps.core.models import AdminAuditLog
+    from django.conf import settings
+    from django.utils import timezone
+    import os
+    import json
+    from pathlib import Path
+
+    retention_days = 90
+    cutoff = timezone.now() - timezone.timedelta(days=retention_days)
+    old_logs = AdminAuditLog.objects.filter(timestamp__lt=cutoff)
+    count = old_logs.count()
+
+    if count == 0:
+        return 0
+
+    audit_backup_dir = Path(settings.BACKUP_DIR) / "audit_logs"
+    audit_backup_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = audit_backup_dir / f"audit_archive_{timezone.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+    logs_data = []
+    for log in old_logs:
+        logs_data.append({
+            "id": log.id,
+            "actor": log.actor.username if log.actor else None,
+            "action": log.action,
+            "target_type": str(log.target_type) if log.target_type else None,
+            "target_id": log.target_id,
+            "details": log.details,
+            "timestamp": log.timestamp.isoformat(),
+            "ip_address": log.ip_address,
+        })
+
+    with open(filename, "w") as f:
+        json.dump(logs_data, f, indent=2)
+
+    old_logs.delete()
+    logger.info(f"Archived {count} audit logs to {filename}")
+    return count
+
+
 # ──────────────────────────────────────────
 # Database Backup Tasks
 # ──────────────────────────────────────────
 
 def backup_database():
-    """
-    Create a timestamped database backup.
-
-    - SQLite: uses Django's ``dumpdata`` management command to produce a
-      JSON dump (portable, no external tool required).
-    - PostgreSQL: calls ``pg_dump`` to produce a plain-SQL dump.
-
-    The backup file is written to ``settings.BACKUP_DIR``.
-    Returns the path of the created file as a string.
-    """
     from django.conf import settings as _settings
 
     backup_dir = Path(getattr(_settings, "BACKUP_DIR", "backups"))
@@ -262,7 +294,6 @@ def backup_database():
 
 
 def _backup_sqlite(output_path: Path) -> None:
-    """Dump via Django's dumpdata (works without sqlite3 CLI)."""
     import django
     from django.core.management import call_command
     import io
@@ -273,7 +304,6 @@ def _backup_sqlite(output_path: Path) -> None:
 
 
 def _backup_postgres(db_settings: dict, output_path: Path) -> None:
-    """Dump via pg_dump."""
     env = os.environ.copy()
     if db_settings.get("PASSWORD"):
         env["PGPASSWORD"] = db_settings["PASSWORD"]
@@ -291,14 +321,6 @@ def _backup_postgres(db_settings: dict, output_path: Path) -> None:
 
 
 def prune_old_backups():
-    """
-    Delete backup files older than ``settings.BACKUP_RETENTION_DAYS`` days.
-
-    Only files matching the ``backup_*.json`` / ``backup_*.sql`` pattern
-    inside ``settings.BACKUP_DIR`` are considered, so unrelated files are
-    left untouched.
-    Returns the count of deleted files.
-    """
     from django.conf import settings as _settings
 
     backup_dir = Path(getattr(_settings, "BACKUP_DIR", "backups"))

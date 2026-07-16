@@ -21,6 +21,11 @@ class CoreConfig(AppConfig):
         connection_created.connect(configure_sqlite)
 
         try:
+            import apps.core.signals  # noqa: F401
+        except ImportError:
+            pass
+
+        try:
             from django_q.models import Schedule
 
             # Create a daily schedule to run the GDPR purge pipeline
@@ -48,6 +53,15 @@ class CoreConfig(AppConfig):
                 defaults={
                     "func": "apps.core.tasks.prune_old_backups",
                     "schedule_type": Schedule.WEEKLY,
+                    "repeats": -1,
+                },
+            )
+
+            Schedule.objects.get_or_create(
+                name="audit-log-archive-monthly",
+                defaults={
+                    "func": "apps.core.tasks.archive_audit_logs",
+                    "schedule_type": Schedule.MONTHLY,
                     "repeats": -1,
                 },
             )

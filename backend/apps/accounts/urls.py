@@ -25,6 +25,11 @@ from .views import (
     UserListView,
     UserStatisticsView,
     UserSuggestionsView,
+    AvatarUploadView,
+    PasswordResetValidateTokenView,
+    ChangePasswordView,
+    PublicProfileView,
+    ShopStreakFreezeView,
 )
 
 urlpatterns = [
