@@ -142,6 +142,29 @@ class SoftDeleteFrameworkTests(TestCase):
         self.assertEqual(Issue.all_objects.count(), 1)
         self.assertEqual(Issue.deleted_objects.count(), 1)
 
+    def test_n_plus_one_query_detection(self):
+        from nplusone.core.exceptions import NPlusOneError
+        from nplusone.core.profiler import Profiler
+
+        users = [
+            User.objects.create_user(username=f"user_{i}", password="password123")
+            for i in range(3)
+        ]
+
+        for i in range(3):
+            Issue.objects.create(
+                title=f"Test Issue {i}",
+                description="Test Description",
+                assigned_to=users[i],
+                status="open",
+            )
+
+        with self.assertRaises(NPlusOneError):
+            with Profiler():
+                parent_users = list(User.objects.all())
+                for user in parent_users:
+                    _ = list(user.assigned_issues.all())
+
 
 class CircuitBreakerTests(TestCase):
     def setUp(self):
@@ -154,11 +177,9 @@ class CircuitBreakerTests(TestCase):
 
         cb = CircuitBreaker("test_service", failure_threshold=3, recovery_timeout=2)
 
-        # Should be closed initially
         self.assertEqual(cb.get_state(), "closed")
 
         with cb:
-            # Do nothing, should count as success
             pass
 
         self.assertEqual(cb.get_state(), "closed")
@@ -175,10 +196,8 @@ class CircuitBreakerTests(TestCase):
             except ValueError:
                 pass
 
-        # State should be open now
         self.assertEqual(cb.get_state(), "open")
 
-        # Subsequent requests should raise CircuitOpenError immediately
         with self.assertRaises(CircuitOpenError):
             with cb:
                 pass
@@ -190,7 +209,6 @@ class CircuitBreakerTests(TestCase):
 
         cb = CircuitBreaker("test_service", failure_threshold=2, recovery_timeout=1)
 
-        # Trigger failures to open circuit
         for _ in range(2):
             try:
                 with cb:
@@ -200,13 +218,10 @@ class CircuitBreakerTests(TestCase):
 
         self.assertEqual(cb.get_state(), "open")
 
-        # Wait for recovery timeout
         time.sleep(1.1)
 
-        # Should transition to half-open
         self.assertEqual(cb.get_state(), "half_open")
 
-        # A success should close the circuit
         with cb:
             pass
 

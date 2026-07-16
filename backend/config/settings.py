@@ -237,6 +237,12 @@ MIDDLEWARE = [
     "django_prometheus.middleware.PrometheusAfterMiddleware",
 ]
 
+if TESTING:
+    INSTALLED_APPS.append("nplusone.ext.django")
+    MIDDLEWARE.insert(0, "nplusone.ext.django.NPlusOneMiddleware")
+    NPLUSONE_RAISE = True
+    SILENCED_SYSTEM_CHECKS = ["perf.E001"]
+
 ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
