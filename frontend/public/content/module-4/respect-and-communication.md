@@ -1,6 +1,4 @@
-## Respect & Communication
-
-Open source isn't just about code — it's about **people**. Good communication is just as important as writing clean code.
+## Open source isn't just about code — it's about **people**. Good communication is just as important as writing clean code.
 
 Think of an open source project like a **community garden**. There are volunteers who planted the seeds, water the plants, and pull weeds. When you show up, you're a guest in their garden. A little kindness and patience goes a long way.
 
