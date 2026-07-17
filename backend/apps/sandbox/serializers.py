@@ -322,3 +322,56 @@ class ModerationAttemptSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "user", "created_at", "updated_at"]
+
+
+# ============================================================
+# FEATURE 11: ISSUE TRIAGE & LABELING MAINTAINER SCENARIO
+# ============================================================
+
+from .models import TriageIssue, TriageAttempt
+
+
+class TriageIssueSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TriageIssue
+        fields = [
+            "id",
+            "title",
+            "raw_issue_title",
+            "raw_issue_body",
+            "correct_labels",
+            "hint",
+            "difficulty",
+            "created_at",
+        ]
+        read_only_fields = ["id", "correct_labels", "created_at"]
+
+
+class TriageAttemptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TriageAttempt
+        fields = [
+            "id",
+            "issue",
+            "user",
+            "submitted_labels",
+            "submitted_response",
+            "label_score",
+            "response_score",
+            "total_score",
+            "passed",
+            "feedback",
+            "badge_awarded",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "user",
+            "label_score",
+            "response_score",
+            "total_score",
+            "passed",
+            "feedback",
+            "badge_awarded",
+            "created_at",
+        ]

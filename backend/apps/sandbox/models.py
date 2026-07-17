@@ -667,3 +667,101 @@ class ModerationAttempt(models.Model):
 
     def __str__(self):
         return f"Attempt by {self.user.username} on {self.scenario.title}"
+
+
+# ============================================================
+# FEATURE 11: ISSUE TRIAGE & LABELING MAINTAINER SCENARIO
+# ============================================================
+
+
+class TriageIssue(models.Model):
+    class Difficulty(models.TextChoices):
+        EASY = "easy", "Easy"
+        MEDIUM = "medium", "Medium"
+        HARD = "hard", "Hard"
+
+    VALID_LABELS = [
+        "bug",
+        "enhancement",
+        "needs-repro",
+        "wontfix",
+        "duplicate",
+        "question",
+        "good first issue",
+        "help wanted",
+        "invalid",
+        "documentation",
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=255, help_text="Scenario title shown to the user.")
+    raw_issue_title = models.CharField(
+        max_length=255,
+        help_text="The poorly written title of the simulated issue.",
+    )
+    raw_issue_body = models.TextField(
+        help_text="The poorly written body of the simulated issue (missing steps, no env, etc.)."
+    )
+    correct_labels = models.JSONField(
+        help_text='List of correct label strings, e.g. ["bug", "needs-repro"]'
+    )
+    model_response = models.TextField(
+        help_text="An exemplary maintainer response asking for missing info."
+    )
+    hint = models.TextField(blank=True, help_text="Optional hint for the user.")
+    difficulty = models.CharField(
+        max_length=10, choices=Difficulty.choices, default=Difficulty.MEDIUM
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["difficulty", "-created_at"]
+
+    def __str__(self):
+        return f"[{self.difficulty}] {self.title}"
+
+
+class TriageAttempt(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    issue = models.ForeignKey(
+        TriageIssue,
+        on_delete=models.CASCADE,
+        related_name="attempts",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="triage_attempts",
+    )
+    submitted_labels = models.JSONField(
+        help_text='Labels the user chose, e.g. ["bug", "needs-repro"]'
+    )
+    submitted_response = models.TextField(
+        help_text="The response text the user wrote to the issue author."
+    )
+    label_score = models.IntegerField(
+        default=0, help_text="Score for label accuracy (0–50)."
+    )
+    response_score = models.IntegerField(
+        default=0, help_text="Score for response quality (0–50)."
+    )
+    total_score = models.IntegerField(default=0, help_text="Combined score (0–100).")
+    passed = models.BooleanField(default=False, help_text="True if total_score >= 70.")
+    feedback = models.TextField(
+        blank=True, help_text="Automated feedback explaining the score."
+    )
+    badge_awarded = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text='Badge slug awarded on pass, e.g. "triager".',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return (
+            f"TriageAttempt by {self.user} on '{self.issue.title}' "
+            f"[{'PASS' if self.passed else 'FAIL'} {self.total_score}/100]"
+        )

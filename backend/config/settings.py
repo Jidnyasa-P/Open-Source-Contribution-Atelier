@@ -35,6 +35,7 @@ def safe_context_copy(self):
 BaseContext.__copy__ = safe_context_copy
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+PLUGINS_DIR = BASE_DIR / "plugins"
 
 
 from dotenv import load_dotenv
@@ -174,6 +175,7 @@ INSTALLED_APPS = [
     "allauth.socialaccount",
     "allauth.socialaccount.providers.github",
     "apps.accounts",
+    "apps.errors",
     "apps.cache",
     "apps.core",
     "apps.localization",
@@ -199,6 +201,7 @@ INSTALLED_APPS = [
     "apps.project_health",
     "django_q",
     "waffle",
+    "apps.plugins.apps.PluginsConfig",
 ]
 # Redis Cache
 CACHES = {
@@ -216,6 +219,7 @@ DEFAULT_RATE = "100/hour"
 
 MIDDLEWARE = [
     "django_prometheus.middleware.PrometheusBeforeMiddleware",
+    "apps.core.middleware.request_id.RequestIdMiddleware",
     "config.logging_middleware.RequestResponseLoggingMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
@@ -227,6 +231,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "config.raw_middleware.ReadAfterWriteMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "apps.cache.audit_middleware.AuditLogMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -292,6 +297,21 @@ for db_name, db_config in DATABASES.items():
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 DATABASE_ROUTERS = ["config.db_router.PrimaryReplicaRouter"]
+
+# ── Read Replica Configuration ─────────────────────────────────────────────
+# Each entry must match a key in DATABASES. Omit or set to [] to disable.
+DATABASE_REPLICAS = [
+    {"NAME": "replica", "WEIGHT": int(os.getenv("REPLICA_WEIGHT", "1"))},
+]
+
+# Seconds after a write before a user's reads are redirected back to replicas.
+READ_AFTER_WRITE_SECONDS = int(os.getenv("READ_AFTER_WRITE_SECONDS", "5"))
+
+# Replication lag (seconds) above which /health/db/replication-lag returns 503.
+REPLICA_LAG_ALERT_SECONDS = int(os.getenv("REPLICA_LAG_ALERT_SECONDS", "30"))
+
+# Seconds to wait before retrying a dead replica.
+REPLICA_DEAD_TIMEOUT = int(os.getenv("REPLICA_DEAD_TIMEOUT", "60"))
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -628,33 +648,45 @@ AUDIT_LOG_ENABLED = True
 
 # Configure audit logger
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'json': {
-            'format': '%(message)s',
-        },
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
-            'style': '{',
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "request_id": {
+            "()": "apps.core.logging_filters.RequestIdFilter",
         },
     },
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'json',
+    "formatters": {
+        "json": {
+            "format": '{"time": "%(asctime)s", "level": "%(levelname)s", "request_id": "%(request_id)s", "user_id": "%(user_id)s", "message": "%(message)s"}',
         },
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': 'audit.log',
-            'formatter': 'json',
+        "verbose": {
+            "format": "{levelname} {asctime} [req:{request_id} user:{user_id}] {module} {process:d} {thread:d} {message}",
+            "style": "{",
         },
     },
-    'loggers': {
-        'audit': {
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
-            'propagate': False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+            "filters": ["request_id"],
+        },
+        "file": {
+            "class": "logging.FileHandler",
+            "filename": "audit.log",
+            "formatter": "json",
+            "filters": ["request_id"],
+        },
+    },
+    "loggers": {
+        "audit": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        # Add root logger or generic loggers to also use console if needed
+        "": {
+            "handlers": ["console"],
+            "level": "INFO",
         },
     },
 }
@@ -743,13 +775,26 @@ MEILI_MASTER_KEY = os.getenv("MEILI_MASTER_KEY", "masterKey123")
 MEILI_INDEX_NAME = os.getenv("MEILI_INDEX_NAME", "search_documents")
 
 # Files are assembled outside MEDIA_ROOT and remain inaccessible until clean.
-UPLOAD_QUARANTINE_ROOT = Path(os.getenv("UPLOAD_QUARANTINE_ROOT", BASE_DIR / "quarantine"))
+UPLOAD_QUARANTINE_ROOT = Path(
+    os.getenv("UPLOAD_QUARANTINE_ROOT", BASE_DIR / "quarantine")
+)
 UPLOAD_MAX_SIZES = {
     "avatar": int(os.getenv("UPLOAD_AVATAR_MAX_BYTES", str(5 * 1024 * 1024))),
     "project": int(os.getenv("UPLOAD_PROJECT_MAX_BYTES", str(50 * 1024 * 1024))),
     "lesson": int(os.getenv("UPLOAD_LESSON_MAX_BYTES", str(50 * 1024 * 1024))),
 }
-UPLOAD_ALLOWED_TYPES = ("jpeg", "png", "webp", "gif", "svg", "pdf", "markdown", "text", "zip", "gzip")
+UPLOAD_ALLOWED_TYPES = (
+    "jpeg",
+    "png",
+    "webp",
+    "gif",
+    "svg",
+    "pdf",
+    "markdown",
+    "text",
+    "zip",
+    "gzip",
+)
 UPLOAD_AVATAR_ALLOWED_TYPES = ("jpeg", "png", "webp", "gif", "svg")
 
 CLAMAV_HOST = os.getenv("CLAMAV_HOST", "127.0.0.1")
@@ -777,3 +822,4 @@ if SENTRY_DSN:
         traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "1.0")),
         send_default_pii=False,
     )
+
