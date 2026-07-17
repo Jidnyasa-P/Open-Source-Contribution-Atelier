@@ -622,10 +622,6 @@ from .serializers import LicenseScenarioSerializer, LicenseAttemptSerializer
 
 
 class LicenseScenarioViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    Viewset for License Scenarios (Dependency Detective).
-    """
-
     queryset = LicenseScenario.objects.all().order_by("-created_at")
     serializer_class = LicenseScenarioSerializer
     permission_classes = [permissions.AllowAny]
@@ -653,7 +649,6 @@ class LicenseScenarioViewSet(viewsets.ReadOnlyModelViewSet):
             is_successful = False
             feedback = "You approved a PR with a license violation!"
         elif has_violations and not approved:
-            # Check if they flagged the correct ones
             violation_ids = set(violations.values_list("id", flat=True))
             flagged_set = set(flagged_dependencies)
 
@@ -662,9 +657,7 @@ class LicenseScenarioViewSet(viewsets.ReadOnlyModelViewSet):
                 feedback = "Great job! You caught all the license violations."
             elif violation_ids.issubset(flagged_set):
                 is_successful = False
-                feedback = (
-                    "You caught the violations, but you also flagged safe dependencies."
-                )
+                feedback = "You caught the violations, but you also flagged safe dependencies."
             else:
                 is_successful = False
                 feedback = "You rejected the PR, but you missed some of the actual license violations."
@@ -675,7 +668,7 @@ class LicenseScenarioViewSet(viewsets.ReadOnlyModelViewSet):
             is_successful = False
             feedback = "You rejected a perfectly safe PR."
 
-        attempt = LicenseAttempt.objects.create(
+        LicenseAttempt.objects.create(
             user=user,
             scenario=scenario,
             approved=approved,
@@ -684,3 +677,144 @@ class LicenseScenarioViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
         return Response({"is_successful": is_successful, "feedback": feedback})
+
+
+# ============================================================
+# FEATURE 11: ISSUE TRIAGE & LABELING MAINTAINER SCENARIO
+# ============================================================
+
+from .models import TriageIssue, TriageAttempt
+from .serializers import TriageIssueSerializer, TriageAttemptSerializer
+
+
+def _score_triage(issue: TriageIssue, submitted_labels: list, submitted_response: str):
+    correct_set = {lbl.lower() for lbl in (issue.correct_labels or [])}
+    submitted_set = {lbl.lower() for lbl in (submitted_labels or [])}
+    if correct_set or submitted_set:
+        intersection = correct_set & submitted_set
+        union = correct_set | submitted_set
+        jaccard = len(intersection) / len(union)
+    else:
+        jaccard = 0.0
+    label_score = round(jaccard * 50)
+
+    body = submitted_response.lower()
+
+    politeness_keywords = [
+        "thank", "appreciate", "welcome", "glad", "happy to help",
+        "great report", "hope", "sorry", "apologies",
+    ]
+    action_keywords = [
+        "could you", "please", "can you", "would you", "let us know",
+        "share", "provide", "attach", "include",
+    ]
+    missing_info_keywords = [
+        "steps", "environment", "version", "reproduce", "repro",
+        "os", "operating system", "browser", "output", "expected", "actual",
+        "error", "stack trace", "log",
+    ]
+
+    polite_hits = sum(1 for kw in politeness_keywords if kw in body)
+    action_hits = sum(1 for kw in action_keywords if kw in body)
+    missing_hits = sum(1 for kw in missing_info_keywords if kw in body)
+
+    politeness_score = min(polite_hits * 7, 20)
+    action_score = min(action_hits * 5, 20)
+    missing_score = min(missing_hits * 3, 10)
+    response_score = politeness_score + action_score + missing_score
+
+    feedback_lines = []
+    correct_not_submitted = correct_set - submitted_set
+    submitted_not_correct = submitted_set - correct_set
+    if correct_not_submitted:
+        feedback_lines.append(
+            f"You missed the following correct labels: {', '.join(sorted(correct_not_submitted))}."
+        )
+    if submitted_not_correct:
+        feedback_lines.append(
+            f"The following labels were incorrect: {', '.join(sorted(submitted_not_correct))}."
+        )
+    if polite_hits == 0:
+        feedback_lines.append("Your response could be more polite and welcoming.")
+    if action_hits == 0:
+        feedback_lines.append("Your response should ask the reporter for more information.")
+    if missing_hits == 0:
+        feedback_lines.append(
+            "Your response should mention what specific information is missing (e.g., steps to reproduce, environment)."
+        )
+    if not feedback_lines:
+        feedback_lines.append("Excellent triage! Your labels and response are both accurate and professional.")
+
+    total_score = label_score + response_score
+    passed = total_score >= 70
+    badge = "triager" if passed else ""
+
+    return label_score, response_score, total_score, passed, " ".join(feedback_lines), badge
+
+
+class TriageIssueViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = TriageIssue.objects.all()
+    serializer_class = TriageIssueSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        difficulty = self.request.query_params.get("difficulty")
+        if difficulty:
+            qs = qs.filter(difficulty=difficulty)
+        return qs
+
+    @action(detail=True, methods=["post"])
+    def submit_triage(self, request, pk=None):
+        issue = self.get_object()
+        submitted_labels = request.data.get("submitted_labels", [])
+        submitted_response = request.data.get("submitted_response", "").strip()
+
+        if not isinstance(submitted_labels, list):
+            return Response(
+                {"error": "submitted_labels must be a list of strings."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        invalid_labels = [
+            lbl for lbl in submitted_labels
+            if lbl.lower() not in [v.lower() for v in TriageIssue.VALID_LABELS]
+        ]
+        if invalid_labels:
+            return Response(
+                {"error": f"Invalid labels: {invalid_labels}. Allowed: {TriageIssue.VALID_LABELS}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not submitted_response:
+            return Response(
+                {"error": "submitted_response cannot be empty."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        label_score, response_score, total_score, passed, feedback, badge = _score_triage(
+            issue, submitted_labels, submitted_response
+        )
+
+        attempt = TriageAttempt.objects.create(
+            issue=issue,
+            user=request.user,
+            submitted_labels=submitted_labels,
+            submitted_response=submitted_response,
+            label_score=label_score,
+            response_score=response_score,
+            total_score=total_score,
+            passed=passed,
+            feedback=feedback,
+            badge_awarded=badge,
+        )
+
+        return Response(
+            TriageAttemptSerializer(attempt).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=False, methods=["get"])
+    def my_attempts(self, request):
+        attempts = TriageAttempt.objects.filter(user=request.user).select_related("issue")
+        return Response(TriageAttemptSerializer(attempts, many=True).data)

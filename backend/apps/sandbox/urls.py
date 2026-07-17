@@ -23,6 +23,7 @@ from .views import (
     PipelineExecutionViewSet,
     ConflictScenarioViewSet,
     LicenseScenarioViewSet,
+    TriageIssueViewSet,
 )
 
 # ============================================================
@@ -49,12 +50,9 @@ router.register(
 )
 router.register(r"collab-sessions", CollabSessionViewSet, basename="collab-session")
 router.register(r"pipelines", PipelineExecutionViewSet, basename="pipeline")
-router.register(
-    r"conflict-scenarios", ConflictScenarioViewSet, basename="conflict-scenario"
-)
-router.register(
-    r"license-scenarios", LicenseScenarioViewSet, basename="license-scenario"
-)
+router.register(r"conflict-scenarios", ConflictScenarioViewSet, basename="conflict-scenario")
+router.register(r"license-scenarios", LicenseScenarioViewSet, basename="license-scenario")
+router.register(r"triage-issues", TriageIssueViewSet, basename="triage-issue")
 
 # ============================================================
 # URL Patterns

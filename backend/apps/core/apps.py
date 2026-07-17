@@ -7,21 +7,23 @@ class CoreConfig(AppConfig):
 
     def ready(self):
         import apps.core.checks  # noqa
-        
+        import apps.core.celery_signals  # noqa
+
         from django.db.backends.signals import connection_created
-        
+
         def configure_sqlite(sender, connection, **kwargs):
-            if connection.vendor == 'sqlite':
+            if connection.vendor == "sqlite":
                 cursor = connection.cursor()
-                cursor.execute('PRAGMA journal_mode = WAL;')
-                cursor.execute('PRAGMA synchronous = NORMAL;')
-                cursor.execute('PRAGMA cache_size = -64000;')
-                cursor.execute('PRAGMA busy_timeout = 5000;')
-                
+                cursor.execute("PRAGMA journal_mode = WAL;")
+                cursor.execute("PRAGMA synchronous = NORMAL;")
+                cursor.execute("PRAGMA cache_size = -64000;")
+                cursor.execute("PRAGMA busy_timeout = 5000;")
+
         connection_created.connect(configure_sqlite)
 
         try:
             import apps.core.signals  # noqa: F401
+            import apps.core.cache.signals  # noqa: F401
         except ImportError:
             pass
 

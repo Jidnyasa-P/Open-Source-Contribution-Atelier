@@ -6,6 +6,7 @@ import { useTerminalAutocomplete } from "../../hooks/useTerminalAutocomplete";
 import { useFailureAnimation } from "../../hooks/useFailureAnimation";
 import { Textarea } from "./Textarea";
 import { GitCheatSheet } from "./GitCheatSheet";
+import { ContextualGitCheatSheet } from "./ContextualGitCheatSheet";
 
 interface GitTerminalProps {
   /** Called when a lesson-objective command succeeds */
@@ -16,6 +17,10 @@ interface GitTerminalProps {
   title?: string;
   /** XP reward amount */
   xp?: number;
+  /** Current lesson slug — enables contextual cheat-sheet overlay */
+  lessonSlug?: string;
+  /** Curriculum module id (e.g. module-2) */
+  moduleId?: string;
 }
 
 function LineRenderer({ line }: { line: TerminalLine }) {
@@ -54,6 +59,8 @@ export function GitTerminal({
   hint,
   title = "Git Sandbox Terminal",
   xp = 20,
+  lessonSlug,
+  moduleId,
 }: GitTerminalProps) {
   const [isExecuting, setIsExecuting] = useState(false);
   const [inputVal, setInputVal] = useState("");
@@ -294,6 +301,13 @@ export function GitTerminal({
           <span className="text-xs font-black text-yellow-300 bg-black/40 px-2 py-0.5 rounded-full">
             {xp} XP
           </span>
+          {(lessonSlug || moduleId) && (
+            <ContextualGitCheatSheet
+              lessonSlug={lessonSlug}
+              moduleId={moduleId}
+              onInsertCommand={(command) => setInputVal(command)}
+            />
+          )}
           <button
             onClick={() => setShowCheatSheet(true)}
             title="Git Cheat Sheet"
