@@ -104,6 +104,12 @@ const ContributorSandboxPage = lazy(() =>
   })),
 );
 
+const PrDiffSummarizerPage = lazy(() =>
+  import("../pages/PrDiffSummarizerPage").then((module) => ({
+    default: module.PrDiffSummarizerPage,
+  })),
+);
+
 const ProfileSettingsPage = lazy(() =>
   import("../pages/ProfileSettingsPage").then((module) => ({
     default: module.ProfileSettingsPage,
@@ -143,6 +149,12 @@ const PathwayPage = lazy(() =>
 const LearningPathPage = lazy(() =>
   import("../pages/LearningPathPage").then((module) => ({
     default: module.LearningPathPage,
+  })),
+);
+
+const BountiesPage = lazy(() =>
+  import("../pages/BountiesPage").then((module) => ({
+    default: module.BountiesPage,
   })),
 );
 
@@ -296,7 +308,7 @@ export function AppRouter() {
           />
 
           <Route
-            path="/chat"
+            path="/chat/:roomId?"
             element={
               <ProtectedRoute>
                 <ChatPage />
@@ -323,6 +335,15 @@ export function AppRouter() {
           />
 
           <Route
+            path="/bounties"
+            element={
+              <ProtectedRoute>
+                <BountiesPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/community"
             element={
               <ProtectedRoute>
@@ -338,6 +359,15 @@ export function AppRouter() {
             element={
               <ProtectedRoute>
                 <ContributorSandboxPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/pr-diff-summarizer"
+            element={
+              <ProtectedRoute>
+                <PrDiffSummarizerPage />
               </ProtectedRoute>
             }
           />

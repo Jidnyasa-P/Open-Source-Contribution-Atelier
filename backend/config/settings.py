@@ -1,15 +1,15 @@
+import logging
 import os
 import sys
-import logging
 from datetime import timedelta
 from pathlib import Path
-from config.auth import TOKEN_BLACKLIST_ENABLED
 
 import dj_database_url
-from django.core.exceptions import ImproperlyConfigured
 
 # pyrefly: ignore [missing-import]
 from django.core.exceptions import ImproperlyConfigured
+
+from config.auth import TOKEN_BLACKLIST_ENABLED
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +17,7 @@ TESTING = "test" in sys.argv or "pytest" in sys.modules
 
 # Patch Django template context copy for Python 3.14 compatibility
 import copy
+
 from django.template.context import BaseContext
 
 
@@ -34,6 +35,7 @@ def safe_context_copy(self):
 BaseContext.__copy__ = safe_context_copy
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+PLUGINS_DIR = BASE_DIR / "plugins"
 
 
 from dotenv import load_dotenv
@@ -151,7 +153,7 @@ if DEBUG:
 # CORS_ALLOW_ALL_ORIGINS defaults to False; rely on CORS_ALLOWED_ORIGINS allowlist.
 
 INSTALLED_APPS = [
-    "daphne",
+    # "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -173,13 +175,17 @@ INSTALLED_APPS = [
     "allauth.socialaccount",
     "allauth.socialaccount.providers.github",
     "apps.accounts",
+    "apps.errors",
     "apps.cache",
     "apps.core",
+    "apps.localization",
     "apps.content",
     "apps.progress",
     "apps.challenges",
+    "apps.accessibility",
     "apps.sandbox",
     "apps.organizations",
+    "apps.billing",
     "apps.webhooks",
     "apps.notes",
     "apps.recommendations",
@@ -191,8 +197,11 @@ INSTALLED_APPS = [
     "apps.portfolio",
     "apps.feature_flags",
     "apps.issues",
+    "apps.gamification",
+    "apps.project_health",
     "django_q",
     "waffle",
+    "apps.plugins.apps.PluginsConfig",
 ]
 # Redis Cache
 CACHES = {
@@ -210,6 +219,7 @@ DEFAULT_RATE = "100/hour"
 
 MIDDLEWARE = [
     "django_prometheus.middleware.PrometheusBeforeMiddleware",
+    "apps.core.middleware.request_id.RequestIdMiddleware",
     "config.logging_middleware.RequestResponseLoggingMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
@@ -217,18 +227,27 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.middleware.gzip.GZipMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "apps.localization.middleware.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "config.raw_middleware.ReadAfterWriteMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "apps.cache.audit_middleware.AuditLogMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.core.middleware.AdminAuditMiddleware",
     "waffle.middleware.WaffleMiddleware",
     "apps.cache.middleware.RateLimitMiddleware",
     "apps.sandbox.middleware.SandboxExecutionLogMiddleware",
     "allauth.account.middleware.AccountMiddleware",
     "django_prometheus.middleware.PrometheusAfterMiddleware",
 ]
+
+if TESTING:
+    INSTALLED_APPS.append("nplusone.ext.django")
+    MIDDLEWARE.insert(0, "nplusone.ext.django.NPlusOneMiddleware")
+    NPLUSONE_RAISE = True
+    SILENCED_SYSTEM_CHECKS = ["perf.E001"]
 
 ROOT_URLCONF = "config.urls"
 
@@ -272,12 +291,27 @@ for db_name, db_config in DATABASES.items():
         db_config["ENGINE"] = "django_prometheus.db.backends.postgresql"
         # Disable server-side cursors to avoid issues with PgBouncer transaction pooling
         db_config.setdefault("OPTIONS", {})["DISABLE_SERVER_SIDE_CURSORS"] = True
-    elif db_config.get("ENGINE") == "django.db.backends.sqlite3":
+    elif "sqlite3" in db_config.get("ENGINE", ""):
         db_config["ENGINE"] = "django_prometheus.db.backends.sqlite3"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 DATABASE_ROUTERS = ["config.db_router.PrimaryReplicaRouter"]
+
+# ── Read Replica Configuration ─────────────────────────────────────────────
+# Each entry must match a key in DATABASES. Omit or set to [] to disable.
+DATABASE_REPLICAS = [
+    {"NAME": "replica", "WEIGHT": int(os.getenv("REPLICA_WEIGHT", "1"))},
+]
+
+# Seconds after a write before a user's reads are redirected back to replicas.
+READ_AFTER_WRITE_SECONDS = int(os.getenv("READ_AFTER_WRITE_SECONDS", "5"))
+
+# Replication lag (seconds) above which /health/db/replication-lag returns 503.
+REPLICA_LAG_ALERT_SECONDS = int(os.getenv("REPLICA_LAG_ALERT_SECONDS", "30"))
+
+# Seconds to wait before retrying a dead replica.
+REPLICA_DEAD_TIMEOUT = int(os.getenv("REPLICA_DEAD_TIMEOUT", "60"))
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -288,6 +322,15 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "en-us"
+
+LANGUAGES = [
+    ("en", "English"),
+    ("es", "Spanish"),
+    ("fr", "French"),
+    ("de", "German"),
+    ("zh-hans", "Simplified Chinese"),
+]
+
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
@@ -348,8 +391,8 @@ REST_FRAMEWORK = {
     # ── Default Throttle Classes ─────────────────────────────────────────────
     "DATETIME_FORMAT": "%Y-%m-%dT%H:%M:%SZ",
     "DEFAULT_THROTTLE_CLASSES": [
-        "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
+        "apps.core.throttling.SlidingWindowAnonThrottle",
+        "apps.core.throttling.SlidingWindowUserThrottle",
     ],
     # ── Throttle Rates ───────────────────────────────────────────────────────
     # Sandbox endpoints
@@ -374,6 +417,10 @@ REST_FRAMEWORK = {
             "RATE_AUTH_MAGIC_LINK_REQUEST", "3/minute"
         ),
         "auth_magic_link_verify": os.getenv("RATE_AUTH_MAGIC_LINK_VERIFY", "5/minute"),
+        # ── Chat ─────────────────────────────────────────────────────────────
+        "chat_message": "30/minute",
+        # ── Events ───────────────────────────────────────────────────────────
+        "events_list": os.getenv("RATE_EVENTS_LIST", "60/minute"),
     },
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -480,9 +527,15 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
 ]
 
-# Auto-include FRONTEND_URL if set and not already in the list
-if _frontend_url and _frontend_url not in CSRF_TRUSTED_ORIGINS:
-    CSRF_TRUSTED_ORIGINS.append(_frontend_url)
+CONTENT_SECURITY_POLICY = {
+    "img-src": [
+        "'self'",
+        "blob:",                    
+        "http://localhost:8000",   
+        "https://*.amazonaws.com",  
+        "data:",                    
+    ],
+}
 
 # ──────────────────────────────────────────
 # Redis Availability and Configuration (Dynamic Fallbacks)
@@ -558,6 +611,16 @@ else:
         },
     }
 
+CELERY_BEAT_SCHEDULE = {
+    'sync-oss-issues-hourly': {
+        'task': 'apps.recommendations.tasks.sync_oss_issues',
+        'schedule': 3600.0,  # Every hour
+    },
+}
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
 # Cache timeout for Search API (in seconds) - Default: 1 hour
 SEARCH_CACHE_TIMEOUT = 60 * 60
 
@@ -587,12 +650,17 @@ AUDIT_LOG_ENABLED = True
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {
+        "request_id": {
+            "()": "apps.core.logging_filters.RequestIdFilter",
+        },
+    },
     "formatters": {
         "json": {
-            "format": "%(message)s",
+            "format": '{"time": "%(asctime)s", "level": "%(levelname)s", "request_id": "%(request_id)s", "user_id": "%(user_id)s", "message": "%(message)s"}',
         },
         "verbose": {
-            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "format": "{levelname} {asctime} [req:{request_id} user:{user_id}] {module} {process:d} {thread:d} {message}",
             "style": "{",
         },
     },
@@ -600,11 +668,13 @@ LOGGING = {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "json",
+            "filters": ["request_id"],
         },
         "file": {
             "class": "logging.FileHandler",
             "filename": "audit.log",
             "formatter": "json",
+            "filters": ["request_id"],
         },
     },
     "loggers": {
@@ -612,6 +682,11 @@ LOGGING = {
             "handlers": ["console", "file"],
             "level": "INFO",
             "propagate": False,
+        },
+        # Add root logger or generic loggers to also use console if needed
+        "": {
+            "handlers": ["console"],
+            "level": "INFO",
         },
     },
 }
@@ -691,3 +766,60 @@ CELERY_TASK_STORE_EAGER_RESULT = True
 # Waffle Feature Flags
 WAFFLE_CREATE_MISSING_FLAGS = True
 WAFFLE_FLAG_DEFAULT = False
+
+# ──────────────────────────────────────────
+# Meilisearch Configurations
+# ──────────────────────────────────────────
+MEILI_URL = os.getenv("MEILI_URL", "http://localhost:7700")
+MEILI_MASTER_KEY = os.getenv("MEILI_MASTER_KEY", "masterKey123")
+MEILI_INDEX_NAME = os.getenv("MEILI_INDEX_NAME", "search_documents")
+
+# Files are assembled outside MEDIA_ROOT and remain inaccessible until clean.
+UPLOAD_QUARANTINE_ROOT = Path(
+    os.getenv("UPLOAD_QUARANTINE_ROOT", BASE_DIR / "quarantine")
+)
+UPLOAD_MAX_SIZES = {
+    "avatar": int(os.getenv("UPLOAD_AVATAR_MAX_BYTES", str(5 * 1024 * 1024))),
+    "project": int(os.getenv("UPLOAD_PROJECT_MAX_BYTES", str(50 * 1024 * 1024))),
+    "lesson": int(os.getenv("UPLOAD_LESSON_MAX_BYTES", str(50 * 1024 * 1024))),
+}
+UPLOAD_ALLOWED_TYPES = (
+    "jpeg",
+    "png",
+    "webp",
+    "gif",
+    "svg",
+    "pdf",
+    "markdown",
+    "text",
+    "zip",
+    "gzip",
+)
+UPLOAD_AVATAR_ALLOWED_TYPES = ("jpeg", "png", "webp", "gif", "svg")
+
+CLAMAV_HOST = os.getenv("CLAMAV_HOST", "127.0.0.1")
+CLAMAV_PORT = int(os.getenv("CLAMAV_PORT", "3310"))
+CLAMAV_SOCKET = os.getenv("CLAMAV_SOCKET", "")
+UPLOAD_SCAN_FAIL_CLOSED = os.getenv("UPLOAD_SCAN_FAIL_CLOSED", "true").lower() == "true"
+
+# ──────────────────────────────────────────
+# Database Backup Configuration
+# ──────────────────────────────────────────
+BACKUP_DIR = os.getenv("BACKUP_DIR", str(BASE_DIR / "backups"))
+BACKUP_RETENTION_DAYS = int(os.getenv("BACKUP_RETENTION_DAYS", "30"))
+
+# ──────────────────────────────────────────
+# Sentry Configuration
+# ──────────────────────────────────────────
+SENTRY_DSN = os.getenv("SENTRY_DSN")
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "1.0")),
+        send_default_pii=False,
+    )
+

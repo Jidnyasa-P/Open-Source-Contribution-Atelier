@@ -6,6 +6,7 @@ import { useTerminalAutocomplete } from "../../hooks/useTerminalAutocomplete";
 import { useFailureAnimation } from "../../hooks/useFailureAnimation";
 import { Textarea } from "./Textarea";
 import { GitCheatSheet } from "./GitCheatSheet";
+import { ContextualGitCheatSheet } from "./ContextualGitCheatSheet";
 
 interface GitTerminalProps {
   /** Called when a lesson-objective command succeeds */
@@ -16,6 +17,10 @@ interface GitTerminalProps {
   title?: string;
   /** XP reward amount */
   xp?: number;
+  /** Current lesson slug — enables contextual cheat-sheet overlay */
+  lessonSlug?: string;
+  /** Curriculum module id (e.g. module-2) */
+  moduleId?: string;
 }
 
 function LineRenderer({ line }: { line: TerminalLine }) {
@@ -54,6 +59,8 @@ export function GitTerminal({
   hint,
   title = "Git Sandbox Terminal",
   xp = 20,
+  lessonSlug,
+  moduleId,
 }: GitTerminalProps) {
   const [isExecuting, setIsExecuting] = useState(false);
   const [inputVal, setInputVal] = useState("");
@@ -82,7 +89,7 @@ export function GitTerminal({
   } = useGitShell({ onObjectiveComplete: handleComplete });
 
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const { suggestions, selectedIndex, setSelectedIndex } =
+  const { suggestions, selectedIndex, setSelectedIndex, commonCompletionPrefix } =
     useTerminalAutocomplete(inputVal, shellState);
 
   useEffect(() => {
@@ -202,7 +209,14 @@ export function GitTerminal({
       }
       if (e.key === "Tab") {
         e.preventDefault();
-        setInputVal(suggestions[selectedIndex].completionText);
+        if (suggestions.length === 1) {
+          setInputVal(suggestions[0].completionText);
+        } else if (commonCompletionPrefix && commonCompletionPrefix.length > inputVal.length) {
+          setInputVal(commonCompletionPrefix);
+        } else {
+          // IDE fallback for visual selection
+          setInputVal(suggestions[selectedIndex].completionText);
+        }
         return;
       }
       if (e.key === "Escape") {
@@ -211,7 +225,7 @@ export function GitTerminal({
         return;
       }
     } else if (e.key === "Tab") {
-      // If suggestions are not open, keep default Tab behavior.
+      e.preventDefault(); // Prevent focus shift even if no suggestions
       return;
     }
 
@@ -287,6 +301,13 @@ export function GitTerminal({
           <span className="text-xs font-black text-yellow-300 bg-black/40 px-2 py-0.5 rounded-full">
             {xp} XP
           </span>
+          {(lessonSlug || moduleId) && (
+            <ContextualGitCheatSheet
+              lessonSlug={lessonSlug}
+              moduleId={moduleId}
+              onInsertCommand={(command) => setInputVal(command)}
+            />
+          )}
           <button
             onClick={() => setShowCheatSheet(true)}
             title="Git Cheat Sheet"

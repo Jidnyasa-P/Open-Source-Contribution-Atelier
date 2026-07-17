@@ -11,6 +11,10 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { SectionCard } from "../components/ui/SectionCard";
+import { CommitMessageCoach } from "../components/ui/CommitMessageCoach";
+import { PrDiffSummarizer } from "../components/ui/PrDiffSummarizer";
+import { validateCommitMessage } from "../lib/conventionalCommitCoach";
+import { Link } from "react-router-dom";
 
 type Step = "setup" | "fix" | "commit" | "pr" | "success";
 
@@ -121,13 +125,11 @@ export function ContributorSandboxPage() {
   const startLinterRun = () => {
     if (!commitMsg.trim()) return;
 
-    // Check for conventional commit structure
-    const isConventional = /^(feat|fix|docs|refactor|chore)(\(.+\))?:/.test(
-      commitMsg,
-    );
-    if (!isConventional) {
+    const validation = validateCommitMessage(commitMsg);
+    if (!validation.valid) {
       alert(
-        "Our project requires Conventional Commits! Format: 'feat: add feature' or 'fix: resolve issue'",
+        validation.issues[0]?.message ??
+          "Our project requires Conventional Commits! Format: 'feat: add feature' or 'fix: resolve issue'",
       );
       return;
     }
@@ -357,18 +359,12 @@ export function ContributorSandboxPage() {
               </div>
 
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-black mb-2">
-                    Commit Message
-                  </label>
-                  <input
-                    type="text"
-                    value={commitMsg}
-                    onChange={(e) => setCommitMsg(e.target.value)}
-                    className="w-full border-4 border-black px-4 py-3 rounded-xl font-mono text-sm bg-white text-black shadow-card dark:bg-[#151411] dark:border-[#2e2924] dark:text-[#f0ebe2]"
-                    placeholder="e.g. fix: handle unexpected errors in token decoding"
-                  />
-                </div>
+                <CommitMessageCoach
+                  value={commitMsg}
+                  onChange={setCommitMsg}
+                  compact
+                  defaultValue=""
+                />
 
                 {isLinterRunning && (
                   <div className="bg-surface-low dark:bg-[#151411] p-4 rounded-xl border-2 border-black flex items-center gap-3">
@@ -457,6 +453,27 @@ export function ContributorSandboxPage() {
                     credentials leaked
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-black text-text dark:text-[#f0ebe2]">
+                  Practice writing your PR description
+                </p>
+                <p className="text-xs text-muted dark:text-[#c4bbae] font-bold">
+                  Paste changed files to generate a checklist-ready PR body. Full
+                  tool:{" "}
+                  <Link
+                    to="/pr-diff-summarizer"
+                    className="underline text-accent hover:opacity-80"
+                  >
+                    /pr-diff-summarizer
+                  </Link>
+                </p>
+                <PrDiffSummarizer
+                  compact
+                  defaultIssueNumber=""
+                  className="shadow-none"
+                />
               </div>
 
               <div className="flex justify-end gap-3 mt-6">

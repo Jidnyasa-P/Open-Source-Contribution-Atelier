@@ -100,7 +100,10 @@ export const lessons: Lesson[] = [
 // Fetch lessons from live API
 export async function fetchLessonsApi(): Promise<Lesson[]> {
   try {
-    const data = await fetchApi("/content/lessons/", { requireAuth: false });
+    const data = await fetchApi("/content/lessons/", {
+      requireAuth: false,
+      timeoutMs: 3000,
+    });
     // Use fallback lessons when the API returns no data (e.g. unseeded database)
     if (!Array.isArray(data) || data.length === 0) {
       console.warn(

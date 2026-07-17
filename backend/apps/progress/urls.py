@@ -28,6 +28,9 @@ from .views import (
     LeaderboardView,
     BufferMetricsView,
     HeatmapView,
+    StreakStatusView,
+    StreakRecoveryView,
+    HeatmapCSVExportView,
 )
 
 urlpatterns = [
@@ -37,6 +40,9 @@ urlpatterns = [
     path("leaderboard/", LeaderboardView.as_view(), name="leaderboard"),
     path("buffer-metrics/", BufferMetricsView.as_view(), name="buffer-metrics"),
     path("heatmap/", HeatmapView.as_view(), name="heatmap"),
+    path("heatmap/export/", HeatmapCSVExportView.as_view(), name="heatmap-export-csv"),
+    path("streak/", StreakStatusView.as_view(), name="streak-status"),
+    path("streak/recovery/", StreakRecoveryView.as_view(), name="streak-recovery"),
     path("export/pdf/", UserProgressPDFExportView.as_view(), name="export-pdf"),
 
     path("badges/", BadgeListView.as_view(), name="badges"),
@@ -48,12 +54,8 @@ urlpatterns = [
     
     # Recommendations
     path("recommendations/", RecommendationsView.as_view(), name="recommendations"),
-
-    
-    # Community
-
-    path("daily-stats/", DailyLessonStatsView.as_view(), name="daily-stats"),
-
+    path('certificate/verify/<str:hash>/', CertificateVerificationView.as_view(), name='certificate-verify'),
+    path('daily-stats/', DailyLessonStatsView.as_view(), name='daily-stats'),
     path("feed/", CommunityFeedView.as_view(), name="community-feed"),
     path("community-stats/", CommunityStatsView.as_view(), name="community-stats"),
     

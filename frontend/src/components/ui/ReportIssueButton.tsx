@@ -4,6 +4,15 @@ import ReportIssueModal from "./ReportIssueModal";
 
 export default function ReportIssueButton() {
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+  if (!mounted || pathname === "/" || pathname === "/login" || pathname === "/signup") {
+    return null;
+  }
 
   return createPortal(
     <>

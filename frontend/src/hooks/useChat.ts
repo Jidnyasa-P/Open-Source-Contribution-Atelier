@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useWebSocket } from "./useWebSocket";
+import { useWebSocketManager as useWebSocket } from "./useWebSocketManager";
 import { useTypingIndicator } from "./useTypingIndicator";
 import {
   generateKeyPair,
@@ -11,8 +11,9 @@ import {
   KeyPair,
 } from "../lib/crypto";
 
-type ChatMessage = {
-  id: string;
+export type ChatMessage = {
+  id: string | number;
+  parent_id?: number | null;
   username: string;
   user_id: number;
   message: string;
@@ -61,14 +62,15 @@ export function useChat({ roomId, token, username }: UseChatOptions) {
         if (senderId === myId) {
           setMessages((prev) => {
             const optimisticIdx = prev.findIndex((m) =>
-              m.id.endsWith("_optimistic"),
+              String(m.id).endsWith("_optimistic"),
             );
             if (optimisticIdx !== -1) {
               return prev.map((m, idx) =>
                 idx === optimisticIdx
                   ? {
                       ...m,
-                      id: `msg_${messageIdRef.current + 1}`,
+                      id: msg.id as number | string,
+                      parent_id: msg.parent_id as number | null,
                       username: msg.username as string,
                       timestamp: msg.created_at
                         ? new Date(
@@ -119,7 +121,8 @@ export function useChat({ roomId, token, username }: UseChatOptions) {
           return [
             ...prev,
             {
-              id: `msg_${messageIdRef.current}`,
+              id: (msg.id as number) ?? `msg_${messageIdRef.current}`,
+              parent_id: msg.parent_id as number | null,
               username: msg.username as string,
               user_id: msg.user_id as number,
               message: plaintext,
@@ -222,11 +225,12 @@ export function useChat({ roomId, token, username }: UseChatOptions) {
   }, [ws.lastMessage, typing, ws]);
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, parentId?: number) => {
       messageIdRef.current += 1;
       const localId = `msg_${messageIdRef.current}_optimistic`;
       const optimistic: ChatMessage = {
         id: localId,
+        parent_id: parentId,
         username: username || "",
         user_id: localUserIdRef.current ?? 0,
         message: text,
@@ -234,7 +238,7 @@ export function useChat({ roomId, token, username }: UseChatOptions) {
       };
       setMessages((prev) => [...prev, optimistic]);
 
-      ws.send({ action: "send_message", message: text });
+      ws.send({ action: "send_message", message: text, parent_id: parentId });
     },
     [ws, username],
   );
@@ -244,6 +248,8 @@ export function useChat({ roomId, token, username }: UseChatOptions) {
     typingUsers: typing.typingUsers,
     onlineUsers,
     isConnected: ws.isConnected,
+    state: ws.state,
+    getMetrics: ws.getMetrics,
     sendMessage,
     onInputChange: typing.onInputChange,
     onInputBlur: typing.onInputBlur,

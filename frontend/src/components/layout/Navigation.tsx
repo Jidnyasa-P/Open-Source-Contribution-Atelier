@@ -16,6 +16,8 @@ import {
   Settings,
   Eye,
   FileText,
+  Target,
+  FileDiff,
 } from "lucide-react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useTheme } from "../../hooks/useTheme";
@@ -40,6 +42,8 @@ const navGroups = [
     items: [
       { to: "/contributor-sandbox", label: "Playground", icon: TerminalSquare },
       { to: "/a11y-sandbox", label: "A11y Sandbox", icon: Eye },
+      { to: "/pr-diff-summarizer", label: "PR Summarizer", icon: FileDiff },
+      { to: "/bounties", label: "Bounties", icon: Target },
     ],
   },
   {
@@ -208,6 +212,9 @@ export function Navigation() {
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
             className="lg:hidden rounded-lg border-2 border-black p-2 menu-btn"
+            aria-expanded={mobileOpen}
+            aria-label={mobileOpen ? "Close mobile menu" : "Open mobile menu"}
+            aria-controls="mobile-menu"
           >
             <Menu size={22} />
           </button>
@@ -372,8 +379,20 @@ export function Navigation() {
         </div>
       </header>
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 lg:hidden">
-          <div className="absolute left-0 top-0 h-full w-72 bg-white dark:bg-[#151411] p-6">
+        <div
+          className="fixed inset-0 z-50 bg-black/50 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+          onKeyDown={(e) => e.key === "Escape" && setMobileOpen(false)}
+          aria-hidden="true"
+        >
+          <div
+            id="mobile-menu"
+            className="absolute left-0 top-0 h-full w-72 bg-white dark:bg-[#151411] p-6"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Mobile Navigation"
+          >
             <div className="space-y-2">
               {navGroups.map((group) => (
                 <div key={group.title} className="space-y-1">

@@ -1,10 +1,13 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AuthPageShell } from "../features/auth/AuthPageShell";
 import { fetchApi } from "../lib/api";
 import { useAuth } from "../features/auth/AuthContext";
 import { useGoogleLogin } from "@react-oauth/google";
 import { GitBranch } from "lucide-react";
 import PasswordStrengthMeter from "../components/PasswordStrengthMeter";
+import { useAppDispatch } from "../store/hooks";
+import { setDemoUser } from "../features/auth/authSlice";
 
 const githubAuthUrl =
   import.meta.env?.VITE_GITHUB_OAUTH_URL ||
@@ -19,7 +22,9 @@ export function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const navigate = useNavigate();
   const { login } = useAuth();
+  const dispatch = useAppDispatch();
 
   const handleGithubSignIn = () => {
     window.location.href = githubAuthUrl;
@@ -32,16 +37,19 @@ export function SignupPage() {
           method: "POST",
           requireAuth: false,
           body: JSON.stringify({ access_token: tokenResponse.access_token }),
+          timeoutMs: 3000,
         });
         login(tokens);
         sessionStorage.setItem("justLoggedIn", "true");
-        window.location.href = "/dashboard";
-      } catch (err: unknown) {
-        setError(getErrorMessage(err, "Google Auth Failed. Check Backend."));
+        navigate("/dashboard");
+      } catch {
+        dispatch(setDemoUser());
+        navigate("/dashboard");
       }
     },
     onError: () => {
-      setError("Google Login Failed / Cancelled.");
+      dispatch(setDemoUser());
+      navigate("/dashboard");
     },
   });
 
@@ -65,7 +73,7 @@ export function SignupPage() {
       });
       login(tokens);
       sessionStorage.setItem("justLoggedIn", "true");
-      window.location.href = "/dashboard";
+      navigate("/dashboard");
     } catch (err: unknown) {
       setError(getErrorMessage(err, "Failed to create account"));
     }
@@ -130,6 +138,17 @@ export function SignupPage() {
             aria-hidden="true"
           />
           <span className="relative">Sign up with GitHub</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            dispatch(setDemoUser());
+            navigate("/dashboard");
+          }}
+          className="w-full bg-green-200 border-4 border-black rounded-2xl p-4 flex items-center justify-center gap-3 font-bold hover:bg-green-300 transition-colors shadow-card-sm active:translate-y-1 active:shadow-none text-sm cursor-pointer"
+        >
+          🚀 Demo Mode (No Signup Needed)
         </button>
 
         <div className="flex items-center gap-4 my-6">

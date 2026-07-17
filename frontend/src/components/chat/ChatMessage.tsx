@@ -1,10 +1,23 @@
 import clsx from "clsx";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import Prism from "prismjs";
+import "prismjs/components/prism-javascript";
+import "prismjs/components/prism-typescript";
+import "prismjs/components/prism-python";
+import "prismjs/components/prism-rust";
+import "prismjs/components/prism-bash";
+import "prismjs/themes/prism-tomorrow.css";
+
+import { MessageSquare } from "lucide-react";
 
 type ChatMessageProps = {
   message: string;
   username: string;
   isOwn: boolean;
   timestamp?: string;
+  replyCount?: number;
+  onReply?: () => void;
 };
 
 function getInitials(username: string): string {
@@ -37,6 +50,8 @@ export function ChatMessage({
   username,
   isOwn,
   timestamp,
+  replyCount,
+  onReply,
 }: ChatMessageProps) {
   return (
     <div
@@ -56,7 +71,7 @@ export function ChatMessage({
         </div>
       </div>
 
-      <div className="flex flex-col max-w-[70%]">
+      <div className="flex flex-col max-w-[70%] group">
         {!isOwn && (
           <span className="text-[10px] font-black text-slate-500 dark:text-[#a0a0ab] ml-1 mb-0.5">
             @{username}
@@ -70,18 +85,106 @@ export function ChatMessage({
               : "bg-slate-50 text-gray-900 border-black/5 rounded-bl-none dark:bg-slate-800/80 dark:text-gray-100 dark:border-slate-700/60",
           )}
         >
-          <p className="whitespace-pre-wrap break-words">{message}</p>
-        </div>
-        {timestamp && (
-          <span
-            className={clsx(
-              "text-[9px] text-muted/65 dark:text-gray-400 mt-1",
-              isOwn ? "text-right mr-1" : "text-left ml-1",
-            )}
+          <div className="break-words">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              p({ children }) {
+                return <p className="mb-2 last:mb-0 whitespace-pre-wrap">{children}</p>;
+              },
+              a({ href, children }) {
+                return (
+                  <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline">
+                    {children}
+                  </a>
+                );
+              },
+              ul({ children }) {
+                return <ul className="list-disc pl-4 mb-2">{children}</ul>;
+              },
+              ol({ children }) {
+                return <ol className="list-decimal pl-4 mb-2">{children}</ol>;
+              },
+              code(props) {
+                const { children, className, ...rest } = props;
+                const match = /language-(\w+)/.exec(className || "");
+                const language = match ? match[1] : "";
+
+                if (!match) {
+                  return (
+                    <code className="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded text-[13px] font-mono" {...rest}>
+                      {children}
+                    </code>
+                  );
+                }
+
+                const grammar = Prism.languages[language];
+                let highlighted = String(children).replace(/\n$/, "");
+                if (grammar) {
+                  try {
+                    highlighted = Prism.highlight(highlighted, grammar, language);
+                  } catch (e) {
+                    // Ignore highlight errors
+                  }
+                }
+
+                return (
+                  <div className="relative group/code mt-2 mb-2">
+                    <div className="absolute right-2 top-2 text-[10px] text-gray-400 select-none uppercase font-bold">
+                      {language}
+                    </div>
+                    <pre className={`language-${language} bg-[#2d2d2d] rounded-md p-3 overflow-x-auto text-[13px]`} style={{ margin: 0 }}>
+                      {grammar ? (
+                        <code dangerouslySetInnerHTML={{ __html: highlighted }} />
+                      ) : (
+                        <code className={className} {...rest}>
+                          {children}
+                        </code>
+                      )}
+                    </pre>
+                  </div>
+                );
+              },
+            }}
           >
-            {timestamp}
-          </span>
-        )}
+            {message}
+          </ReactMarkdown>
+          </div>
+
+          {onReply && (
+            <button
+              onClick={onReply}
+              className={clsx(
+                "absolute -right-10 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white dark:bg-slate-700 shadow-sm border border-black/5 opacity-0 group-hover:opacity-100 transition-opacity text-slate-500 hover:text-indigo-600",
+                isOwn && "-left-10 right-auto",
+              )}
+              title="Reply in thread"
+            >
+              <MessageSquare size={14} />
+            </button>
+          )}
+        </div>
+
+        <div
+          className={clsx(
+            "flex items-center gap-2 mt-1",
+            isOwn ? "justify-end mr-1" : "justify-start ml-1",
+          )}
+        >
+          {timestamp && (
+            <span className="text-[9px] text-muted/65 dark:text-gray-400">
+              {timestamp}
+            </span>
+          )}
+          {!!replyCount && replyCount > 0 && (
+            <button
+              onClick={onReply}
+              className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
+            >
+              {replyCount} {replyCount === 1 ? "reply" : "replies"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

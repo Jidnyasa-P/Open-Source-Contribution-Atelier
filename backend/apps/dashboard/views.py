@@ -281,8 +281,8 @@ class ContributorDashboardView(APIView):
             ).count()
 
             lesson_xp = (
-                XPEvent.objects.filter(user=user, source_type="lesson").aggregate(
-                    total=Sum("xp_delta")
+                LessonProgress.objects.filter(user=user, completed=True).aggregate(
+                    total=Sum("score")
                 )["total"]
                 or 0
             )
@@ -335,9 +335,9 @@ class ContributorDashboardView(APIView):
 
             # Determine Rank based on user XP vs others
             lesson_xp_sub = (
-                XPEvent.objects.filter(user=OuterRef("pk"), source_type="lesson")
+                LessonProgress.objects.filter(user=OuterRef("pk"), completed=True)
                 .values("user")
-                .annotate(total=Sum("xp_delta"))
+                .annotate(total=Sum("score"))
                 .values("total")
             )
             issues_xp_sub = (
@@ -470,6 +470,13 @@ class ContributorDashboardView(APIView):
                 "completion_percentage": completion_percentage,
             }
 
+        elif field == "active_track":
+            from apps.progress.services.milestone_track_service import MilestoneTrackService
+            return {
+                "active_track_status": MilestoneTrackService.get_user_active_track_status(user),
+                "next_milestone": MilestoneTrackService.get_user_next_milestone(user),
+            }
+
     def get(self, request):
         user = request.user
         fields_param = request.query_params.get("fields")
@@ -481,6 +488,7 @@ class ContributorDashboardView(APIView):
                 "assigned_issues",
                 "recent_prs",
                 "progress_tracker",
+                "active_track",
             ]
 
         data = {}
@@ -490,6 +498,7 @@ class ContributorDashboardView(APIView):
                 "assigned_issues",
                 "recent_prs",
                 "progress_tracker",
+                "active_track",
             ]:
                 continue
 

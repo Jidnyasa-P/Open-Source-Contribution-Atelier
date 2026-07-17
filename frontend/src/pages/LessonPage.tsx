@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { GitTerminal } from "../components/GitTerminal";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import {
   ChevronLeft,
@@ -12,15 +11,19 @@ import {
   Lock,
   Bookmark,
   History,
+  ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 
 import SkeletonLesson from "../components/ui/skeletons/SkeletonLesson";
 import { useUserProgress } from "../hooks/useUserProgress";
+import { useTerminalAutocomplete } from "../hooks/useTerminalAutocomplete";
+import { ShellState } from "../hooks/useGitShell";
 import { useBookmarks } from "../hooks/useBookmarks";
+import { useNotifications } from "../features/notifications/NotificationContext";
 import { fetchApi } from "../lib/api";
 import { Lesson, fetchLessonsApi, fetchLessonContent } from "../lib/lessons";
 import { RecentlyViewedLessonsWidget } from "../components/ui/RecentlyViewedLessonsWidget";
-import Confetti from "react-confetti";
 
 const SESSION_KEY_RECENT = "recentlyViewedLessonsV1";
 const MAX_RECENT_ITEMS = 3;
@@ -61,6 +64,9 @@ const MarkdownRenderer = React.lazy(() =>
 import { LessonHistoryModal } from "../components/LessonHistoryModal";
 import { GitGraph } from "../components/ui/GitGraph";
 import { NotePanel } from "../components/ui/NotePanel";
+import { CommitMessageCoach } from "../components/ui/CommitMessageCoach";
+import { ContextualGitCheatSheet } from "../components/ui/ContextualGitCheatSheet";
+import { moduleIdFromFilePath } from "../lib/contextualGitCheatSheet";
 import { LessonFeedbackWidget } from "../components/ui/LessonFeedbackWidget";
 import { PythonSandbox } from "../components/ui/PythonSandbox";
 const CollabPythonSandbox = React.lazy(() =>
@@ -94,6 +100,7 @@ export function LessonPage() {
   const navigate = useNavigate();
   const { isLessonCompleted, syncProgress } = useUserProgress();
   const { isBookmarked, toggleBookmark } = useBookmarks();
+  const { triggerConfetti } = useNotifications();
   const queryClient = useQueryClient();
 
   const [lesson, setLesson] = useState<Lesson | undefined>(undefined);
@@ -138,11 +145,15 @@ export function LessonPage() {
   const [feedback, setFeedback] = useState<string>("");
   const [showHint, setShowHint] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+
+  const dummyShellState = useMemo(() => ({ cwd: ["/"], fs: {} } as unknown as ShellState), []);
+  const { suggestions, commonCompletionPrefix } = useTerminalAutocomplete(input, dummyShellState);
   const [showConfetti, setShowConfetti] = useState(false);
 
   // For Interactive Terminal Lessons
   const [terminalOutput, setTerminalOutput] = useState("");
   const [repoState, setRepoState] = useState<RepoState>(createInitialRepo());
+  const [conflictContent, setConflictContent] = useState<string>("");
 
   // Quiz-based exercises
   const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
@@ -160,8 +171,17 @@ export function LessonPage() {
   const [helpSuccessMessage, setHelpSuccessMessage] = useState("");
   const MAX_HELP_CHARS = 500;
 
+  // Read Time
+  const calculateReadTime = (content: string) => {
+  const wordsPerMinute = 200;
+  const words = content.split(/\s+/).length;
+  const minutes = Math.ceil(words / wordsPerMinute);
+  return minutes;
+  };
+
   // Note Panel
   const [isNotePanelOpen, setIsNotePanelOpen] = useState(false);
+  const [isCommitCoachOpen, setIsCommitCoachOpen] = useState(false);
 
   // Reading progress scroll ref
   const mainContentRef = useRef<HTMLDivElement>(null);
@@ -436,14 +456,17 @@ export function LessonPage() {
     await new Promise((resolve) => setTimeout(resolve, 800));
 
     const result = parseGitCommand(input, repoState);
-    if (result.error) {
+    if (result.error && result.newState.conflicts.length === 0) {
       setTerminalOutput(result.error);
       setFeedback("error");
       setShowHint(true);
       return;
     } else {
-      setTerminalOutput(result.output || "");
+      setTerminalOutput(result.error || result.output || "");
       setRepoState(result.newState);
+      if (result.newState.conflicts.length > 0 && lesson.conflictScenario) {
+        setConflictContent(lesson.conflictScenario.fileContent || "");
+      }
     }
 
     const expected = lesson.expected;
@@ -461,11 +484,18 @@ export function LessonPage() {
 
     if (isCorrect) {
       setFeedback("correct");
+      
+      const wasCompleted = isLessonCompleted(lesson.slug);
+      
       syncProgress({
         lesson_slug: lesson.slug,
         score: lesson.points || 20,
         completed: true,
       });
+
+      if (!wasCompleted) {
+        triggerConfetti();
+      }
     } else {
       setFeedback("error");
       setShowHint(true);
@@ -501,6 +531,22 @@ export function LessonPage() {
 
     if (isCorrect) {
       setQuizFeedback("correct");
+      if (lesson.slug) {
+        syncProgress({
+          lesson_slug: lesson.slug,
+          score: lesson.points || 15,
+          completed: true,
+        });
+      }
+      const wasCompleted = isLessonCompleted(lesson.slug);
+      syncProgress({
+        lesson_slug: lesson.slug,
+        score: lesson.points || 20,
+        completed: true,
+      });
+      if (!wasCompleted) {
+        triggerConfetti();
+      }
     } else {
       setQuizFeedback("incorrect");
     }
@@ -590,37 +636,55 @@ export function LessonPage() {
   )?.id;
 
   return (
-    <div className="min-h-screen pt-20 flex flex-col lg:flex-row relative">
-      <div className="lg:hidden bg-white border-b-4 border-black dark:bg-[#151411] dark:border-[#2e2924] p-4 flex items-center justify-between z-[80]">
-        <button
-          onClick={() => setIsSidebarOpen((prev) => !prev)}
-          aria-expanded={isSidebarOpen}
-          aria-controls="course-sidebar"
-          className="flex items-center gap-2 font-black text-sm uppercase px-3 py-2 bg-surface-low border-2 border-black rounded-lg text-black"
+    <div className="w-full h-screen flex flex-col overflow-hidden bg-white dark:bg-[#0a0a0f]">
+      {/* Immersive Lesson Top Header Bar */}
+      <header className="h-[72px] border-b-4 border-black dark:border-[#2e2924] bg-white dark:bg-[#0f0e0c] flex items-center justify-between px-4 sm:px-6 flex-shrink-0 z-40">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsSidebarOpen((prev) => !prev)}
+            className="lg:hidden flex items-center gap-2 font-black text-xs uppercase px-3 py-2 bg-surface-low border-2 border-black rounded-lg text-black"
+          >
+            {isSidebarOpen ? <X size={14} /> : <Menu size={14} />}
+            Outline
+          </button>
+          <Link
+            to="/dashboard"
+            className="flex items-center gap-2 font-black text-xs uppercase px-3 py-2 bg-surface-low border-2 border-black rounded-lg text-black dark:bg-[#151411] dark:border-[#2e2924] dark:text-[#f0ebe2] hover:-translate-y-0.5 shadow-card-sm transition-all"
+          >
+            <ArrowLeft size={14} />
+            <span className="hidden sm:inline">Back to Dashboard</span>
+            <span className="sm:hidden">Exit</span>
+          </Link>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <span className="hidden md:inline-block font-mono text-[10px] uppercase font-bold text-muted dark:text-[#9b8f80]">
+            Lesson Workspace
+          </span>
+          <span className="font-mono text-xs font-black bg-black text-white px-3 py-1.5 rounded-full dark:bg-[#2e2924]">
+            💰 XP Bounties: {lesson.points || 15}
+          </span>
+        </div>
+      </header>
+
+      {/* Main split-screen panel (Sidebar + Content Workspace) */}
+      <div className="flex-1 flex flex-row overflow-hidden relative">
+        {/* Backdrop overlay — closes drawer on click-outside on mobile */}
+        {isSidebarOpen && (
+          <div
+            className="fixed inset-0 z-[90] bg-black/40 lg:hidden"
+            aria-hidden="true"
+            onClick={closeSidebar}
+          />
+        )}
+
+        <aside
+          id="course-sidebar"
+          ref={sidebarRef}
+          className={`fixed top-0 left-0 h-full w-[300px] border-r-4 border-black bg-white dark:bg-[#151411] dark:border-[#2e2924] overflow-y-auto p-6 transition-transform duration-300 ease-in-out z-[100] pt-6
+            ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
+            lg:relative lg:top-auto lg:left-auto lg:h-full lg:w-[320px] lg:flex-shrink-0 lg:translate-x-0 lg:block`}
         >
-          {isSidebarOpen ? <X size={16} /> : <Menu size={16} />}
-          {isSidebarOpen ? "Close Outline" : "Course Directory"}
-        </button>
-        <span className="font-mono text-xs font-black bg-black text-white px-3 py-1 rounded-full dark:bg-[#2e2924]">
-          XP Bounties: {lesson.points || 15}
-        </span>
-      </div>
-
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 z-[90] bg-black/40 lg:hidden"
-          aria-hidden="true"
-          onClick={closeSidebar}
-        />
-      )}
-
-      <aside
-        id="course-sidebar"
-        ref={sidebarRef}
-        className={`fixed top-0 left-0 h-full w-[300px] border-r-4 border-black bg-white dark:bg-[#151411] dark:border-[#2e2924] overflow-y-auto p-6 transition-transform duration-300 ease-in-out z-[100] pt-20
-          ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:relative lg:top-auto lg:left-auto lg:h-auto lg:w-[320px] lg:flex-shrink-0 lg:translate-x-0 lg:block lg:max-h-[calc(100vh-80px)]`}
-      >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-black uppercase flex items-center gap-2">
             <BookOpen size={18} className="text-primary" />
@@ -700,7 +764,7 @@ export function LessonPage() {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col max-h-[calc(100vh-80px)] overflow-hidden">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         <div className="h-2 w-full bg-surface-low border-b-2 border-black dark:bg-[#151411] dark:border-[#2e2924] relative flex-shrink-0">
           <div
             className="h-full bg-primary transition-all duration-150"
@@ -719,9 +783,17 @@ export function LessonPage() {
           <div className="max-w-3xl mx-auto space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <span className="text-[10px] font-mono font-black bg-accent text-black px-3 py-1 rounded-full border-2 border-black rotate-[-1deg] inline-block shadow-card-sm uppercase">
-                  {lesson.difficulty || "beginner"}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-mono font-black bg-accent text-black px-3 py-1 rounded-full border-2 border-black rotate-[-1deg] inline-block shadow-card-sm uppercase">
+                    {lesson.difficulty || "beginner"}
+                  </span>
+                  <span className="text-[10px] font-mono font-black bg-surface-low text-text px-3 py-1 rounded-full border-2 border-black rotate-[1deg] inline-block shadow-card-sm uppercase dark:bg-[#1f1c18] dark:border-[#2e2924] dark:text-[#f0ebe2]">
+                    ⏱️ {calculateReadTime(markdownContent)} min read
+                  </span>
+                  <span className="text-[10px] font-mono font-black bg-surface-low text-muted px-3 py-1 rounded-full border-2 border-black rotate-[-0.5deg] inline-block shadow-card-sm uppercase dark:bg-[#1f1c18] dark:border-[#2e2924] dark:text-[#c4bbae]">
+                    📅 Updated: {new Date((lesson as any).updatedAt || (lesson as any).updated_at || new Date()).toLocaleDateString()}
+                  </span>
+                </div>
                 <h1 className="text-4xl sm:text-5xl font-black text-text dark:text-[#f0ebe2] drop-shadow-[2.5px_2.5px_0_#FF3B30] mt-3">
                   {lesson.title}
                 </h1>
@@ -801,11 +873,15 @@ export function LessonPage() {
                       <PluginComponent
                         lesson={lesson}
                         onSuccess={(score) => {
+                          const wasCompleted = isCompleted;
                           syncProgress({
                             lesson_slug: lesson.slug,
                             score: score || lesson.points || 20,
                             completed: true,
                           });
+                          if (!wasCompleted) {
+                            triggerConfetti();
+                          }
                         }}
                       />
                     </div>
@@ -825,22 +901,30 @@ export function LessonPage() {
                           )!
                         }
                         onSuccess={() => {
+                          const wasCompleted = isCompleted;
                           syncProgress({
                             lesson_slug: lesson.slug,
                             score: lesson.points || 20,
                             completed: true,
                           });
+                          if (!wasCompleted) {
+                            triggerConfetti();
+                          }
                         }}
                       />
                     ) : (
                       <PythonSandbox
                         exercise={lesson.pythonExercise}
                         onSuccess={() => {
+                          const wasCompleted = isCompleted;
                           syncProgress({
                             lesson_slug: lesson.slug,
                             score: lesson.points || 20,
                             completed: true,
                           });
+                          if (!wasCompleted) {
+                            triggerConfetti();
+                          }
                         }}
                       />
                     )}
@@ -850,11 +934,15 @@ export function LessonPage() {
                     <JSSandbox
                       exercise={lesson.jsExercise}
                       onSuccess={() => {
+                        const wasCompleted = isCompleted;
                         syncProgress({
                           lesson_slug: lesson.slug,
                           score: lesson.points || 20,
                           completed: true,
                         });
+                        if (!wasCompleted) {
+                          triggerConfetti();
+                        }
                       }}
                     />
                   </div>
@@ -863,11 +951,15 @@ export function LessonPage() {
                     <InteractiveDebugger
                       exercise={lesson.debugExercise}
                       onSuccess={() => {
+                        const wasCompleted = isCompleted;
                         syncProgress({
                           lesson_slug: lesson.slug,
                           score: lesson.points || 30,
                           completed: true,
                         });
+                        if (!wasCompleted) {
+                          triggerConfetti();
+                        }
                       }}
                     />
                   </div>
@@ -997,11 +1089,15 @@ export function LessonPage() {
                         ) : (
                           <button
                             onClick={() => {
+                              const wasCompleted = isCompleted;
                               syncProgress({
                                 lesson_slug: lesson.slug,
                                 score: lesson.points || 15,
                                 completed: true,
                               });
+                              if (!wasCompleted) {
+                                triggerConfetti();
+                              }
                             }}
                             className="px-6 py-2 bg-black text-white font-bold rounded-lg border-2 border-black shadow-brutal transition-transform active:translate-y-0.5"
                           >
@@ -1019,27 +1115,49 @@ export function LessonPage() {
                       )}
                     </div>
                   </div>
-                ) : hasConflict ? (
-                  <div className="mt-8">
-                    {feedback === "correct" && (
-                      <div
-                        role="status"
-                        className="mt-6 text-green-700 font-bold bg-green-50 p-4 rounded-lg border-4 border-green-600 animate-bounce"
+                ) : repoState.conflicts.length !== 0 ? (
+                  <div className="rounded-2xl border-4 bg-surface-low p-6 shadow-card dark:bg-[#1f1c18] dark:border-[#2e2924] border-black mt-8">
+                    <h3 className="text-xl font-black mb-4 flex items-center gap-2 text-text dark:text-[#f0ebe2]">
+                      <span>📝</span> Resolve Merge Conflict
+                    </h3>
+                    <p className="text-sm text-muted mb-4 dark:text-[#c4bbae]">
+                      Edit the file below to resolve the conflict markers, then save your changes.
+                    </p>
+                    <textarea
+                      value={conflictContent}
+                      onChange={(e) => setConflictContent(e.target.value)}
+                      className="w-full h-64 p-4 font-mono text-sm bg-surface-lowest text-text border-2 border-black rounded-lg outline-none mb-4 whitespace-pre"
+                      spellCheck={false}
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => {
+                          if (conflictContent.includes("<<<<<<<") || conflictContent.includes("=======") || conflictContent.includes(">>>>>>>")) {
+                            setFeedback("error");
+                            return;
+                          }
+                          setRepoState((prev) => ({ ...prev, conflicts: [] }));
+                          setFeedback("correct");
+                        }}
+                        className="px-5 py-2.5 bg-primary text-black font-black text-sm rounded-lg border-4 border-black shadow-card-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-card-sm transition-all cursor-pointer"
                       >
-                        ✅ Correct! You successfully resolved the merge
-                        conflict.
-                      </div>
-                    )}
+                        Save & Mark Resolved
+                      </button>
+                    </div>
                     {feedback === "error" && (
-                      <div
-                        role="alert"
-                        aria-live="assertive"
-                        className="mt-6 text-red-700 font-bold bg-red-50 p-4 rounded-lg border-4 border-red-600"
-                      >
-                        ❌ The resolved output doesn't quite match what was
-                        expected. Try reviewing your selections.
+                      <div className="mt-4 text-red-700 font-bold bg-red-50 p-3 rounded-lg border-2 border-red-600">
+                        ❌ Please remove all conflict markers (&lt;&lt;&lt;&lt;&lt;&lt;&lt;, =======, &gt;&gt;&gt;&gt;&gt;&gt;&gt;).
                       </div>
                     )}
+                  </div>
+                ) : hasConflict && feedback === "correct" ? (
+                  <div className="mt-8">
+                    <div
+                      role="status"
+                      className="mt-6 text-green-700 font-bold bg-green-50 p-4 rounded-lg border-4 border-green-600 animate-bounce"
+                    >
+                      ✅ Correct! You successfully resolved the merge conflict.
+                    </div>
                   </div>
                 ) : (
                   <div
@@ -1052,6 +1170,18 @@ export function LessonPage() {
                   >
                     <h3 className="text-xl font-black mb-4 flex items-center gap-2 text-text dark:text-[#f0ebe2]">
                       <span>💻</span> Sandbox terminal check
+                      <span className="ml-auto">
+                        <ContextualGitCheatSheet
+                          lessonSlug={lesson.slug}
+                          moduleId={
+                            moduleIdFromFilePath(lesson.filePath) ||
+                            (lesson.category?.startsWith("module-")
+                              ? lesson.category
+                              : undefined)
+                          }
+                          onInsertCommand={(command) => setInput(command)}
+                        />
+                      </span>
                     </h3>
 
                     <GitGraph state={repoState} />
@@ -1074,6 +1204,14 @@ export function LessonPage() {
                           value={input}
                           onChange={(e) => setInput(e.target.value)}
                           onKeyDown={(e) => {
+                            if (e.key === "Tab") {
+                              e.preventDefault();
+                              if (suggestions.length === 1) {
+                                setInput(suggestions[0].completionText);
+                              } else if (commonCompletionPrefix && commonCompletionPrefix.length > input.length) {
+                                setInput(commonCompletionPrefix);
+                              }
+                            }
                             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
                               e.preventDefault();
                               handleCommandSubmit(
@@ -1205,9 +1343,22 @@ export function LessonPage() {
           </div>
         </div>
 
-        <div className="border-t-4 border-black p-4 bg-white dark:bg-[#151411] dark:border-[#2e2924] flex justify-end gap-4 flex-shrink-0">
+        {/* Mentor Help Trigger Row */}
+        <div className="border-t-4 border-black p-4 bg-white dark:bg-[#151411] dark:border-[#2e2924] flex justify-end gap-4 flex-shrink-0 flex-wrap">
           <button
-            onClick={() => setIsNotePanelOpen(!isNotePanelOpen)}
+            onClick={() => {
+              setIsCommitCoachOpen(!isCommitCoachOpen);
+              if (!isCommitCoachOpen) setIsNotePanelOpen(false);
+            }}
+            className="px-4 py-2 bg-white text-text dark:bg-[#151411] dark:text-[#f0ebe2] font-black text-xs rounded-lg border-4 border-black shadow-card-sm hover:-translate-y-0.5 cursor-pointer"
+          >
+            {isCommitCoachOpen ? "Close Commit Coach" : "Commit Coach"}
+          </button>
+          <button
+            onClick={() => {
+              setIsNotePanelOpen(!isNotePanelOpen);
+              if (!isNotePanelOpen) setIsCommitCoachOpen(false);
+            }}
             className="px-4 py-2 bg-white text-text dark:bg-[#151411] dark:text-[#f0ebe2] font-black text-xs rounded-lg border-4 border-black shadow-card-sm hover:-translate-y-0.5 cursor-pointer"
           >
             {isNotePanelOpen ? "Close Notes 📝" : "Notes 📝"}
@@ -1229,6 +1380,38 @@ export function LessonPage() {
           lessonSlug={lesson.slug}
           onClose={() => setIsNotePanelOpen(false)}
         />
+      )}
+
+      {isCommitCoachOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40">
+          <button
+            type="button"
+            aria-label="Close commit message coach"
+            className="flex-1 cursor-default"
+            onClick={() => setIsCommitCoachOpen(false)}
+          />
+          <aside className="h-full w-full max-w-md overflow-y-auto bg-surface-lowest border-l-4 border-black p-6 shadow-card space-y-4 dark:bg-[#0f0e0c] dark:border-[#2e2924]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-black text-text dark:text-[#f0ebe2]">
+                  Practice your commit
+                </h2>
+                <p className="text-xs text-muted mt-1 dark:text-[#c4bbae]">
+                  Draft a Conventional Commit while you learn — then copy it
+                  into your real PR.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCommitCoachOpen(false)}
+                className="px-3 py-1 border-2 border-black rounded-lg font-black text-xs hover:bg-surface-low dark:border-[#2e2924] dark:text-[#f0ebe2]"
+              >
+                Close
+              </button>
+            </div>
+            <CommitMessageCoach />
+          </aside>
+        </div>
       )}
 
       {isHelpPanelOpen && (
@@ -1313,7 +1496,6 @@ export function LessonPage() {
       {lesson && isCompleted && (
         <LessonFeedbackWidget lessonSlug={lesson.slug} />
       )}
-      {showConfetti && <Confetti />}
 
       {showHistory && (
         <LessonHistoryModal
@@ -1322,9 +1504,7 @@ export function LessonPage() {
           onClose={() => setShowHistory(false)}
         />
       )}
-
-      {/* Private Notes Widget */}
-      <NotesWidget />
+      </div>
     </div>
   );
 }

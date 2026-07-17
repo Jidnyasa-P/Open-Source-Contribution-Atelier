@@ -14,7 +14,7 @@ from rest_framework.generics import ListAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
-from rest_framework.throttling import AnonRateThrottle
+from apps.core.throttling import SlidingWindowAnonThrottle, SlidingWindowScopedThrottle
 from rest_framework.views import APIView
 from django.http import HttpResponse
 from django.core.cache import cache
@@ -807,8 +807,33 @@ class QuizAttemptView(APIView):
         )
 
 
-class CertificateVerificationThrottle(AnonRateThrottle):
+class CertificateVerificationThrottle(SlidingWindowAnonThrottle):
     rate = "10/minute"
+
+
+class CertificateVerifyView(APIView):
+    """Public API to verify certificate by hash."""
+    
+    permission_classes = []  # Public endpoint
+    
+    def get(self, request, hash):
+        try:
+            certificate = Certificate.objects.get(
+                verification_hash=hash,
+                is_active=True
+            )
+            return Response({
+                'valid': True,
+                'issued_to': certificate.user.username,
+                'issued_at': certificate.created_at,
+                'course': certificate.lesson.title,
+                'certificate_id': certificate.id
+            })
+        except Certificate.DoesNotExist:
+            return Response({
+                'valid': False,
+                'message': 'Certificate not found or invalid'
+            }, status=status.HTTP_404_NOT_FOUND)
 
 
 @extend_schema(responses=CertificateVerificationSerializer)
@@ -936,12 +961,12 @@ from .models import CodeSubmission, ExerciseAttempt, PeerReview
 from .serializers import CodeSubmissionSerializer, PeerReviewSerializer
 
 
-from rest_framework.throttling import ScopedRateThrottle
+
 
 
 class CodeSubmissionView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [SlidingWindowScopedThrottle]
     throttle_scope = "sandbox_user"
 
     def get(self, request):
@@ -1114,6 +1139,11 @@ class ReadingProgressView(APIView):
 
         cache_key = f"reading_progress_{request.user.id}_{lesson_slug}"
         cache.set(cache_key, progress, timeout=60 * 60 * 24 * 30)
+
+        # Record reading minutes for streak recovery if active
+        from apps.progress.services.streak_recovery_service import StreakRecoveryService
+        StreakRecoveryService.record_reading_minute(request.user)
+
         return Response({"status": "success", "progress": progress})
 
 
@@ -1217,8 +1247,9 @@ class HeatmapView(APIView):
     def get(self, request):
         from django.contrib.auth.models import User
         from django.shortcuts import get_object_or_404
-        from apps.progress.models import DailyActivity
+        from apps.progress.models import DailyActivity, LessonProgress, QuizAttempt, ExerciseAttempt
         import datetime
+        from collections import defaultdict
 
         username = request.query_params.get("username")
         if username:
@@ -1231,12 +1262,245 @@ class HeatmapView(APIView):
                 )
             user = request.user
 
-        one_year_ago = datetime.date.today() - datetime.timedelta(days=365)
-        activities = DailyActivity.objects.filter(user=user, date__gte=one_year_ago)
+        start_param = request.query_params.get("start_date")
+        end_param = request.query_params.get("end_date")
+
+        if start_param:
+            try:
+                start_date = datetime.datetime.strptime(start_param, "%Y-%m-%d").date()
+            except ValueError:
+                start_date = datetime.date.today() - datetime.timedelta(days=365)
+        else:
+            start_date = datetime.date.today() - datetime.timedelta(days=365)
+
+        if end_param:
+            try:
+                end_date = datetime.datetime.strptime(end_param, "%Y-%m-%d").date()
+            except ValueError:
+                end_date = datetime.date.today()
+        else:
+            end_date = datetime.date.today()
+
+        activity_type_filter = request.query_params.get("activity_type")
+
+        activity_breakdown = defaultdict(lambda: {"reading": 0, "quizzes": 0, "code_submissions": 0})
+
+        # Fetch records
+        lessons = LessonProgress.objects.filter(
+            user=user, completed=True, updated_at__date__gte=start_date, updated_at__date__lte=end_date
+        )
+        for lp in lessons:
+            d = lp.updated_at.date().isoformat()
+            activity_breakdown[d]["reading"] += 1
+
+        quizzes = QuizAttempt.objects.filter(
+            user=user, created_at__date__gte=start_date, created_at__date__lte=end_date
+        )
+        for qa in quizzes:
+            d = qa.created_at.date().isoformat()
+            activity_breakdown[d]["quizzes"] += 1
+
+        exercises = ExerciseAttempt.objects.filter(
+            user=user, created_at__date__gte=start_date, created_at__date__lte=end_date
+        )
+        for ea in exercises:
+            d = ea.created_at.date().isoformat()
+            activity_breakdown[d]["code_submissions"] += 1
+
+        daily_dates = set(
+            DailyActivity.objects.filter(
+                user=user, date__gte=start_date, date__lte=end_date
+            ).values_list("date", flat=True)
+        )
+
+        all_dates = set(activity_breakdown.keys()) | {d.isoformat() for d in daily_dates}
 
         data = []
-        for act in activities:
-            data.append({"date": act.date.isoformat(), "count": 1})
+        for date_str in sorted(all_dates):
+            date_obj = datetime.date.fromisoformat(date_str)
+            breakdown = activity_breakdown[date_str]
+            reading_cnt = breakdown["reading"]
+            quizzes_cnt = breakdown["quizzes"]
+            code_sub_cnt = breakdown["code_submissions"]
+
+            if activity_type_filter == "reading":
+                count = reading_cnt
+            elif activity_type_filter == "quizzes":
+                count = quizzes_cnt
+            elif activity_type_filter == "code_submissions":
+                count = code_sub_cnt
+            else:
+                total_actions = reading_cnt + quizzes_cnt + code_sub_cnt
+                if total_actions > 0:
+                    count = total_actions
+                elif date_obj in daily_dates:
+                    count = 1
+                else:
+                    count = 0
+
+            if count > 0:
+                data.append({
+                    "date": date_str,
+                    "count": count,
+                    "breakdown": {
+                        "reading": reading_cnt,
+                        "quizzes": quizzes_cnt,
+                        "code_submissions": code_sub_cnt
+                    }
+                })
 
         return Response(data, status=status.HTTP_200_OK)
+
+
+class StreakStatusView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from apps.progress.streak_engine import StreakEngine
+
+        data = StreakEngine.get_streak_data(request.user)
+
+        formatted_data = {
+            "current_streak": data["current_streak"],
+            "highest_streak": data["longest_streak"],
+            "multiplier": data["current_multiplier"],
+            "next_milestone": data["next_milestone"]["days"] if data["next_milestone"] else None
+        }
+        return Response(formatted_data, status=status.HTTP_200_OK)
+
+
+class StreakRecoveryView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from apps.progress.services.streak_recovery_service import StreakRecoveryService
+
+        plan = StreakRecoveryService.get_or_create_recovery_plan(request.user)
+        if not plan:
+            return Response({"has_recovery_plan": False}, status=status.HTTP_200_OK)
+
+        return Response({
+            "has_recovery_plan": True,
+            "recovery_plan": {
+                "target_date": plan.target_date.isoformat(),
+                "previous_streak": plan.previous_streak,
+                "quiz_target": plan.quiz_target,
+                "quiz_progress": plan.quiz_progress,
+                "reading_target": plan.reading_target,
+                "reading_progress": plan.reading_progress,
+                "code_target": plan.code_target,
+                "code_progress": plan.code_progress,
+                "is_completed": plan.is_completed,
+            }
+        }, status=status.HTTP_200_OK)
+
+
+class HeatmapCSVExportView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from apps.progress.models import DailyActivity, LessonProgress, QuizAttempt, ExerciseAttempt
+        import datetime
+        from collections import defaultdict
+        import csv
+        from django.http import HttpResponse
+
+        user = request.user
+
+        start_param = request.query_params.get("start_date")
+        end_param = request.query_params.get("end_date")
+        activity_type_filter = request.query_params.get("activity_type")
+
+        if start_param:
+            try:
+                start_date = datetime.datetime.strptime(start_param, "%Y-%m-%d").date()
+            except ValueError:
+                start_date = datetime.date.today() - datetime.timedelta(days=365)
+        else:
+            start_date = datetime.date.today() - datetime.timedelta(days=365)
+
+        if end_param:
+            try:
+                end_date = datetime.datetime.strptime(end_param, "%Y-%m-%d").date()
+            except ValueError:
+                end_date = datetime.date.today()
+        else:
+            end_date = datetime.date.today()
+
+        activity_breakdown = defaultdict(lambda: {"reading": 0, "quizzes": 0, "code_submissions": 0})
+
+        lessons = LessonProgress.objects.filter(
+            user=user, completed=True, updated_at__date__gte=start_date, updated_at__date__lte=end_date
+        )
+        for lp in lessons:
+            d = lp.updated_at.date().isoformat()
+            activity_breakdown[d]["reading"] += 1
+
+        quizzes = QuizAttempt.objects.filter(
+            user=user, created_at__date__gte=start_date, created_at__date__lte=end_date
+        )
+        for qa in quizzes:
+            d = qa.created_at.date().isoformat()
+            activity_breakdown[d]["quizzes"] += 1
+
+        exercises = ExerciseAttempt.objects.filter(
+            user=user, created_at__date__gte=start_date, created_at__date__lte=end_date
+        )
+        for ea in exercises:
+            d = ea.created_at.date().isoformat()
+            activity_breakdown[d]["code_submissions"] += 1
+
+        daily_dates = set(
+            DailyActivity.objects.filter(
+                user=user, date__gte=start_date, date__lte=end_date
+            ).values_list("date", flat=True)
+        )
+
+        all_dates = set(activity_breakdown.keys()) | {d.isoformat() for d in daily_dates}
+
+        response = HttpResponse(content_type="text/csv")
+        filename = f"activity_export_{start_date}_to_{end_date}.csv"
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+        writer = csv.writer(response)
+        writer.writerow(["Date", "Activity Type", "Reading Count", "Quizzes Count", "Code Submissions Count", "Total Count"])
+
+        for date_str in sorted(all_dates):
+            date_obj = datetime.date.fromisoformat(date_str)
+            breakdown = activity_breakdown[date_str]
+            reading_cnt = breakdown["reading"]
+            quizzes_cnt = breakdown["quizzes"]
+            code_sub_cnt = breakdown["code_submissions"]
+
+            if activity_type_filter == "reading":
+                count = reading_cnt
+                activity_type_label = "Reading"
+            elif activity_type_filter == "quizzes":
+                count = quizzes_cnt
+                activity_type_label = "Quizzes"
+            elif activity_type_filter == "code_submissions":
+                count = code_sub_cnt
+                activity_type_label = "Code Submissions"
+            else:
+                total_actions = reading_cnt + quizzes_cnt + code_sub_cnt
+                if total_actions > 0:
+                    count = total_actions
+                elif date_obj in daily_dates:
+                    count = 1
+                else:
+                    count = 0
+                activity_type_label = "All Activities"
+
+            if count > 0:
+                writer.writerow([
+                    date_str,
+                    activity_type_label,
+                    reading_cnt,
+                    quizzes_cnt,
+                    code_sub_cnt,
+                    count
+                ])
+
+        return response
+
 
