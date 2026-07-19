@@ -9,6 +9,7 @@ import ReportIssueButton from "../components/ui/ReportIssueButton";
 import { ErrorBoundary } from "../components/ui/ErrorBoundary";
 import { NotificationProvider } from "../features/notifications/NotificationContext";
 import { WebSocketStatusIndicator } from "../components/WebSocketStatus/WebSocketStatusIndicator";
+import { CustomCursor } from "../components/CustomCursor";
 import { ScrollToTop } from "../components/ui/ScrollToTop";
 import { OfflineBanner } from "../components/ui/OfflineBanner";
 import { InstallAppBanner } from "../components/ui/InstallAppBanner";
@@ -144,6 +145,7 @@ export function App({ children }: { children?: React.ReactNode }) {
           {children || <AppRouter />}
           <CommandPalette />
           <ReportIssueButton />
+          <CustomCursor />
           <WebSocketStatusIndicator url="" />
           <ScrollToTop />
 
