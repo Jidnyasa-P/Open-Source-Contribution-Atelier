@@ -1,4 +1,4 @@
-import { AdminDashboard } from "../components/Dashboard/AdminDashboard";
+import { AdminDashboard } from "../components/dashboard/AdminDashboard";
 import { useAuth } from "../features/auth/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { fetchApi } from "../lib/api";
