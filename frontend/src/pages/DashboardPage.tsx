@@ -17,7 +17,7 @@ import { CARD_FOCUS_RING } from "../lib/a11yFocus";
 
 export function DashboardPage() {
   const { user } = useAuth();
-  const { progress, isLoading: progressLoading, isLessonCompleted } = useUserProgress();
+  const { isLoading: progressLoading, isLessonCompleted } = useUserProgress();
   const { bookmarks, toggleBookmark } = useBookmarks();
 
   const { lessons, isLoading: lessonsLoading } = useCurriculumLessons();
@@ -83,14 +83,7 @@ export function DashboardPage() {
   const totalLessonsCount = lessons.length;
   const completionPercentage = totalLessonsCount > 0 ? Math.round((completedLessonsCount / totalLessonsCount) * 100) : 0;
 
-  const lastLesson = useMemo(() => {
-    if (!lessons.length) return null;
-    const incomplete = lessons.find((l) => !isLessonCompleted(l.slug));
-    if (incomplete) {
-      return { slug: incomplete.slug, title: incomplete.title, progress: 0 };
-    }
-    return null;
-  }, [lessons, isLessonCompleted]);
+
 
   const { data: certificateData } = useQuery({
     queryKey: ["userCertificate"],
@@ -158,7 +151,7 @@ export function DashboardPage() {
       </section>
 
       {/* Next Lesson + Stats Grid */}
-      <section className="grid gap-6 md:grid-cols-[1.5fr_1fr]">
+      <section className="grid grid-cols-1 gap-6 md:grid-cols-[1.5fr_1fr]">
         {/* Next Lesson CTA */}
         <div className="rounded-[2rem] border-4 border-black bg-white dark:bg-[#1f1c18] dark:border-[#2e2924] p-6 shadow-card hover:-translate-y-0.5 transition-transform">
           <div className="flex items-start gap-4">
