@@ -24,6 +24,7 @@ class DynamicSaltAccessToken(AccessToken):
 
     @classmethod
     def for_user(cls, user: User):
+
         token = cls()
         token["user_id"] = user.pk
         token["password_hash"] = cls._get_user_password_hash(user)
@@ -114,6 +115,7 @@ class DynamicSaltRefreshToken(RefreshToken):
 
     @classmethod
     def for_user(cls, user: User):
+
         token = cls()
         token["user_id"] = user.pk
         token["password_hash"] = cls._get_user_password_hash(user)

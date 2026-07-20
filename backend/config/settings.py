@@ -196,7 +196,9 @@ INSTALLED_APPS = [
     "apps.monitoring",
     "waffle",
     "apps.plugins.apps.PluginsConfig",
+    "apps.oauth",
 ]
+
 # Cache backends are selected with channel layers below (Redis or LocMem fallback).
 
 # Rate Limit
