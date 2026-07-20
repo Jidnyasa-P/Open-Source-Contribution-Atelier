@@ -13,31 +13,10 @@ logger = logging.getLogger(__name__)
 
 TESTING = "test" in sys.argv or "pytest" in sys.modules
 
-# Patch Django template context copy for Python 3.14 compatibility
-import copy
+WS_AUTH_MIGRATION = True 
+WS_TOKEN_TIMEOUT = 3600 
 
-from django.template.context import BaseContext
-
-
-def safe_context_copy(self):
-    cls = self.__class__
-    new_context = cls.__new__(cls)
-    for k, v in self.__dict__.items():
-        if k == "dicts":
-            new_context.dicts = self.dicts[:]
-        else:
-            setattr(new_context, k, copy.copy(v))
-    return new_context
-
-
-BaseContext.__copy__ = safe_context_copy
-
-STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
-
-stripe.api_key = STRIPE_SECRET_KEY
-
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
