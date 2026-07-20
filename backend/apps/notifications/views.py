@@ -70,6 +70,9 @@ class NotificationPrefsView(APIView):
         )
         return Response(_prefs_payload(prefs))
 
+
+
+
     def patch(self, request):
         return self.put(request)
 

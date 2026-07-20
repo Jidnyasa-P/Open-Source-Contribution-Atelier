@@ -36,8 +36,10 @@ const navGroups = [
       { to: "/dashboard", label: "Dashboard", icon: LayoutGrid },
       { to: "/learning-path", label: "Lessons", icon: BookOpen },
       { to: "/challenges", label: "Challenges", icon: Trophy },
+      { to: "/admin/content-studio", label: "Content Studio", icon: FileEdit },
     ],
   },
+
   {
     title: "Practice",
     items: [

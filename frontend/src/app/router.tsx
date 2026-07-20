@@ -224,6 +224,30 @@ const PerformanceDashboardPage = lazy(() =>
   })),
 );
 
+const ContentStudioPage = lazy(() =>
+  import("../pages/admin/ContentStudioPage").then((module) => ({
+    default: module.ContentStudioPage,
+  })),
+);
+
+const LessonEditorPage = lazy(() =>
+  import("../pages/admin/LessonEditorPage").then((module) => ({
+    default: module.LessonEditorPage,
+  })),
+);
+
+const QuizBuilderPage = lazy(() =>
+  import("../pages/admin/QuizBuilderPage").then((module) => ({
+    default: module.QuizBuilderPage,
+  })),
+);
+
+const ModuleTreePage = lazy(() =>
+  import("../pages/admin/ModuleTreePage").then((module) => ({
+    default: module.ModuleTreePage,
+  })),
+);
+
 /*
  * These pages use default exports, so they can be passed directly
  * to React.lazy().
@@ -604,6 +628,40 @@ export function AppRouter() {
               </ProtectedRoute>
             }
           />
+
+          <Route
+            path="/admin/content-studio"
+            element={
+              <ProtectedRoute>
+                <ContentStudioPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/content-studio/lessons/:id"
+            element={
+              <ProtectedRoute>
+                <LessonEditorPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/content-studio/quizzes/:lessonId"
+            element={
+              <ProtectedRoute>
+                <QuizBuilderPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/content-studio/tree"
+            element={
+              <ProtectedRoute>
+                <ModuleTreePage />
+              </ProtectedRoute>
+            }
+          />
+
 
           <Route
             path="/profile"
