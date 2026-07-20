@@ -6,8 +6,10 @@ from django.core.exceptions import ImproperlyConfigured
 
 TESTING = "test" in sys.argv or "pytest" in sys.modules
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+WS_AUTH_MIGRATION = True 
+WS_TOKEN_TIMEOUT = 3600 
 
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
