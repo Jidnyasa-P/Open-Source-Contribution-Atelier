@@ -34,7 +34,6 @@ urlpatterns = [
     # ============================================================
     # WEBHOOKS & UPLOADS
     # ============================================================
-    path("api/webhooks/", include("apps.webhooks.urls")),
     path("api/uploads/", include("apps.uploads.urls")),
     # ============================================================
     # RBAC (Role-Based Access Control)
@@ -55,8 +54,6 @@ urlpatterns = [
     # ============================================================
     # API DOCUMENTATION
     # ============================================================
-    path("api/rbac/", include("apps.rbac.urls")),
-    path("api/uploads/", include("apps.uploads.urls")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",
@@ -67,7 +64,6 @@ urlpatterns = [
     # PROMETHEUS METRICS
     # ============================================================
     path("api/graphql/", csrf_exempt(GraphQLView.as_view(graphiql=True))),
-    path("", include("django_prometheus.urls")),
 ]
 
 from django.conf import settings
@@ -79,11 +75,4 @@ if settings.DEBUG:
     urlpatterns += [
         path("api/organizations/", include("apps.organizations.urls")),
         path("api/feature-flags/", include("apps.feature_flags.urls")),
-        path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-        path(
-            "api/docs/",
-            SpectacularSwaggerView.as_view(url_name="schema"),
-            name="swagger-ui",
-        ),
-        path("graphql/", csrf_exempt(GraphQLView.as_view(graphiql=True))),
-    ]
+        ]
