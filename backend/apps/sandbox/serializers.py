@@ -243,6 +243,17 @@ class PipelineExecutionSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "status", "created_at", "completed_at"]
 
+    def validate_trigger_command(self, value):
+        if not value:
+            return value
+        from .services.pipeline_simulator import validate_trigger_command
+
+        is_valid, sanitized_or_reason = validate_trigger_command(value)
+        if not is_valid:
+            raise serializers.ValidationError(sanitized_or_reason)
+        return sanitized_or_reason
+
+
 
 class ConflictScenarioSerializer(serializers.ModelSerializer):
     class Meta:
