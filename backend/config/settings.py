@@ -197,6 +197,7 @@ INSTALLED_APPS = [
     "waffle",
     "apps.plugins.apps.PluginsConfig",
     "apps.oauth",
+    "apps.dx_analytics",
 ]
 
 # Cache backends are selected with channel layers below (Redis or LocMem fallback).

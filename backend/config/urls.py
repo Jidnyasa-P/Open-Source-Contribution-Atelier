@@ -71,6 +71,8 @@ urlpatterns = [
     path("api/accessibility/", include("apps.accessibility.urls")),
     # ── Issue Reporting ────────────────────────────────────────────────────────
     path("api/issues/", include("apps.issues.urls")),
+    # ── DX Analytics ───────────────────────────────────────────────────────────
+    path("api/dx/", include("apps.dx_analytics.urls")),
     # ── Project Health Dashboard ───────────────────────────────────────────────
     path("api/project-health/", include("apps.project_health.urls")),
     # ── Plugins ────────────────────────────────────────────────────────────────
