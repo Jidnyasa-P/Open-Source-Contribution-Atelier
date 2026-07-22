@@ -549,6 +549,9 @@ from .serializers import PipelineExecutionSerializer
 class PipelineExecutionViewSet(viewsets.ModelViewSet):
     serializer_class = PipelineExecutionSerializer
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [SlidingWindowScopedThrottle]
+    throttle_scope = "sandbox_user"
+
 
     def get_queryset(self):
         return PipelineExecution.objects.filter(

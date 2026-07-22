@@ -492,7 +492,14 @@ export function AppRouter() {
             }
           />
 
-          <Route path="/sandbox" element={<SandboxPage />} />
+          <Route
+            path="/sandbox"
+            element={
+              <ProtectedRoute>
+                <SandboxPage />
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/contributor-sandbox"
