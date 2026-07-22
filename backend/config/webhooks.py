@@ -1,4 +1,5 @@
 import stripe
+from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from apps.billing.models import CustomerSubscription
