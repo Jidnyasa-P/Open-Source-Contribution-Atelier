@@ -76,6 +76,21 @@ urlpatterns = [
     path("api/security/", include("apps.security.urls")),
     # ── Plugins ────────────────────────────────────────────────────────────────
     path("api/plugins/", include("apps.plugins.urls")),
+    # ── Scaffolded Apps ────────────────────────────────────────────────────────
+    path("api/burnout-detection/", include("apps.burnout_detection.urls")),
+    path("api/advanced-search/", include("apps.advanced_search.urls")),
+    path("api/feature-requests/", include("apps.feature_requests.urls")),
+    path("api/issue-categorization/", include("apps.issue_categorization.urls")),
+    path("api/issue-quality-ci/", include("apps.issue_quality_ci.urls")),
+    path("api/issue-routing/", include("apps.issue_routing.urls")),
+    path("api/onboarding/", include("apps.onboarding.urls")),
+    path("api/pr-review-bot/", include("apps.pr_review_bot.urls")),
+    path("api/skills-matching/", include("apps.skills_matching.urls")),
+    path("api/experiments/", include("apps.experiments.urls")),
+    path("api/feed/", include("apps.feed.urls")),
+    path("api/dx-testing/", include("apps.dx_testing.urls")),
+    path("api/issue-quality/", include("apps.issue_quality.urls")),
+    path("api/ml-triage/", include("apps.ml_triage.urls")),
     # ── Events & GraphQL ──────────────────────────────────────────────────────
     # path("api/events/", include("apps.events.urls")),
     path("api/graphql/", include("apps.graphql_gateway.urls")),

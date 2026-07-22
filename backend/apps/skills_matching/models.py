@@ -162,7 +162,7 @@ class Recommendation(models.Model):
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     viewed_at = models.DateTimeField(null=True, blank=True)
-    accepted_at = models.DateTimeField(null=True, True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
