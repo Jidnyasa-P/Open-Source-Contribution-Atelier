@@ -47,20 +47,9 @@ urlpatterns = [
     path("api/search/", include("apps.search.urls")),
     path("api/notes/", include("apps.notes.urls")),
     path("api/recommendations/", include("apps.recommendations.urls")),
-    # ── OAuth 2.0 & OIDC ───────────────────────────────────────────────────────
-    path("", include("apps.oauth.urls")),
-    # ── Webhooks & Uploads ─────────────────────────────────────────────────────
-    path("api/webhooks/", include("apps.webhooks.urls")),
-
-    path("api/uploads/", include("apps.uploads.urls")),
-    # ── RBAC ───────────────────────────────────────────────────────────────────
-    path("api/rbac/", include("apps.rbac.urls")),
-    # ── Errors ─────────────────────────────────────────────────────────────────
-    path("api/errors/", include("apps.errors.urls")),
-    # ── Audit Trail ────────────────────────────────────────────────────────────
-    path("api/audit/", include("apps.audit.urls")),
-    # ── Webhooks & Uploads ─────────────────────────────────────────────────────
-    path("api/webhooks/", include("apps.webhooks.urls")),
+    # ============================================================
+    # WEBHOOKS & UPLOADS
+    # ============================================================
     path("api/uploads/", include("apps.uploads.urls")),
     # ── RBAC ───────────────────────────────────────────────────────────────────
     path("api/rbac/", include("apps.rbac.urls")),
@@ -95,21 +84,19 @@ urlpatterns = [
     # path("api/events/", include("apps.events.urls")),
     path("api/graphql/", include("apps.graphql_gateway.urls")),
     path("api/graphql/legacy/", csrf_exempt(GraphQLView.as_view(graphiql=True))),
-    # ── API Documentation ──────────────────────────────────────────────────────
+    # ============================================================
+    # API DOCUMENTATION
+    # ============================================================
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",
         SpectacularSwaggerView.as_view(url_name="schema"),  # Fixed here
         name="swagger-ui",
     ),
-    # ── Prometheus Metrics ─────────────────────────────────────────────────────
-    path("api/monitoring/", include("apps.monitoring.urls")),
-    path("", include("django_prometheus.urls")),
-    path(
-        "api/redoc/",
-        SpectacularRedocView.as_view(url_name="schema"),
-        name="redoc-ui",
-    ),
+    # ============================================================
+    # PROMETHEUS METRICS
+    # ============================================================
+    path("api/graphql/", csrf_exempt(GraphQLView.as_view(graphiql=True))),
 ]
 
 # ── Development URLs ──────────────────────────────────────────────────────────
@@ -122,12 +109,4 @@ if settings.DEBUG:
     urlpatterns += [
         path("api/organizations/", include("apps.organizations.urls")),
         path("api/feature-flags/", include("apps.feature_flags.urls")),
-        path(
-            "debug/feature-flags/", feature_flags_debug_view, name="debug-feature-flags"
-        ),
-        path(
-            "api/feature-flags/debug/",
-            feature_flags_debug_view,
-            name="feature-flags-debug",
-        ),
-    ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+        ]

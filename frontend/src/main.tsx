@@ -9,7 +9,7 @@ import { ThemeProvider } from "./hooks/useTheme";
 import { ToastProvider } from "./features/ui/ToastContext";
 import { syncOfflineQueue } from "./lib/offlineQueue";
 import { initKeepAlive } from "./lib/hfKeepAlive";
-import { QueryProvider } from "./QueryProvider";
+import { QueryProvider } from './providers/QueryProvider';
 import i18n from "./lib/i18n";
 import { I18nextProvider } from "react-i18next";
 import "./styles.css";
@@ -72,17 +72,15 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <Provider store={store}>
       <I18nextProvider i18n={i18n}>
         <ThemeProvider>
-          <QueryProvider>
-            <AuthProvider>
-              <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-                <ToastProvider>
-                  <NetworkStatusProvider>
-                    <App />
-                  </NetworkStatusProvider>
-                </ToastProvider>
-              </GoogleOAuthProvider>
-            </AuthProvider>
-          </QueryProvider>
+         <QueryProvider>
+          <AuthProvider>
+            <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+              <ToastProvider>
+                <App />
+              </ToastProvider>
+            </GoogleOAuthProvider>
+          </AuthProvider>
+        </QueryProvider>
         </ThemeProvider>
       </I18nextProvider>
     </Provider>
